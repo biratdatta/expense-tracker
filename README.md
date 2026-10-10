@@ -72,3 +72,11 @@ Then on your iPhone:
 If you add a new file, also add it to `ASSETS` in `sw.js`. When you change anything, bump `CACHE` in `sw.js` (e.g. `v5` → `v6`) before deploying. Installed apps then show a "New version available — Reload" banner.
 
 `_headers` tells Cloudflare Pages not to cache `sw.js`, so updates reach phones quickly.
+
+## Tests
+A calculation test suite checks money formatting, refunds/income, budget cycles, carry-over budgets, forecasts, goals, recurring entries, bill splits, stats, report card, backup/restore and CSV — with the clock pinned to a fixed date.
+```
+cd tests
+npm install
+npm test
+```

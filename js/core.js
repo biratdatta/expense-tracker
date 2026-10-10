@@ -165,10 +165,11 @@ const INR2 = new Intl.NumberFormat(LOCALE, { style: 'currency', currency: 'INR',
 const fmt = n => (Math.abs(n - Math.round(n)) < 0.005 ? INR0 : INR2).format(n);
 function fmtShort(n) {
   const a = Math.abs(n), s = n < 0 ? '-' : '', trim = x => x.toFixed(2).replace(/\.?0+$/, '');
-  if (a >= 1e7) return `${s}₹${trim(a / 1e7)}Cr`;
-  if (a >= 1e5) return `${s}₹${trim(a / 1e5)}L`;
-  if (a >= 1e4) return `${s}₹${trim(a / 1e3)}K`;
-  return INR0.format(Math.round(n));
+  const r2 = x => Math.round(x * 100) / 100;   // choose the unit from the rounded display, so ₹99,999 reads ₹1L (not ₹100K)
+  if (Math.round(a) < 1e4) return INR0.format(Math.round(n));
+  if (r2(a / 1e3) < 100) return `${s}₹${trim(a / 1e3)}K`;
+  if (r2(a / 1e5) < 100) return `${s}₹${trim(a / 1e5)}L`;
+  return `${s}₹${trim(a / 1e7)}Cr`;
 }
 function parseAmount(v) {
   v = String(v).replace(/[\s ]/g, '').replace(/[^\d.,-]/g, '');
@@ -211,7 +212,7 @@ const hasUserData = () => !!(S.expenses.length || S.goals.length || S.recurring.
 const appMode = () => S.settings.mode || (S.settings.onboarded || hasUserData() ? 'advanced' : 'basic');
 const isAdvanced = () => appMode() === 'advanced';
 const BASIC_VIEWS = ['home', 'stats', 'budget', 'profile', 'transactions', 'categories'];
-const status = (spent, limit) => !limit ? 'none' : spent > limit ? 'over' : spent / limit >= .75 ? 'warn' : 'ok';
+const budgetStatus = (spent, limit) => !limit ? 'none' : spent > limit ? 'over' : spent / limit >= .75 ? 'warn' : 'ok';
 const STATUS_COLOR = { over: 'var(--red)', warn: 'var(--amber)', ok: 'var(--accent)', none: 'var(--faint)' };
 
 /* A month's target = value set for that month, else the most recent earlier month's value (carried over). */

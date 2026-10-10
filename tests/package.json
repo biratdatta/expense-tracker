@@ -1,0 +1,6 @@
+{
+  "name": "expense-tracker-tests",
+  "private": true,
+  "scripts": { "test": "node calc.test.js" },
+  "devDependencies": { "fake-indexeddb": "^6.0.0", "jsdom": "^24.0.0" }
+}

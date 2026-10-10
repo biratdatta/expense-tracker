@@ -264,7 +264,7 @@ function viewBudget() {
   const spend = totalsByCat(expensesIn(r.start, r.end));
   const spent = sum(Object.values(spend)), total = effectiveBudget(m);
   const overall = overallBudget(m), catSum = totalBudget(m), pool = round2(overall - catSum);
-  const pct = total ? spent / total * 100 : 0, st = status(spent, total);
+  const pct = total ? spent / total * 100 : 0, st = budgetStatus(spent, total);
   const ringLen = Math.min(100, pct);
   const head = `<header class="head"><div><h1>Budget</h1>
       <div class="mnav"><button data-action="month-prev" aria-label="Previous month">${icon('chevL', 16, 2.4)}</button><span>${esc(cycleLabel(m))}</span><button data-action="month-next" aria-label="Next month">${icon('chevR', 16, 2.4)}</button></div></div>
@@ -299,7 +299,7 @@ function viewBudget() {
   if (!total) return head + totalCard + emptyCard('target', 'Set a monthly budget', 'Start with one number for the whole month. You can add limits for specific categories later — only if you want to.', `<button class="btn" data-action="budget-edit" data-focus="overall">${icon('plus', 18, 2.4)} Set monthly budget</button>`);
 
   const withB = S.categories.map(c => ({ c, s: spend[c.id] || 0, l: budgetFor(c.id, m).limit })).filter(x => x.l > 0).sort((a, b) => b.s / b.l - a.s / a.l);
-  const cards = withB.map(({ c, s, l }) => { const stt = status(s, l), p = s / l * 100;
+  const cards = withB.map(({ c, s, l }) => { const stt = budgetStatus(s, l), p = s / l * 100;
     return `<button class="catcard" data-action="goto-cat" data-id="${c.id}"><div class="top">${tint(c)}
       <div class="g"><div class="t">${esc(c.name)}</div><div class="s n">${esc(fmt(s))} of ${esc(fmt(l))}</div></div>
       <div class="r ${stt === 'over' ? 'red' : stt === 'warn' ? 'amber' : ''}">${Math.round(p)}%</div></div>
@@ -311,7 +311,7 @@ function viewBudget() {
     // Everything without its own limit shares what's left of the overall budget
     const restSpent = sum(S.categories.filter(c => !(budgetFor(c.id, m).limit > 0)).map(c => spend[c.id] || 0));
     const restCats = S.categories.filter(c => !(budgetFor(c.id, m).limit > 0)).length;
-    const lim = Math.max(0, pool), stt = lim ? status(restSpent, lim) : (restSpent > 0 ? 'over' : 'ok'), p = lim ? restSpent / lim * 100 : (restSpent ? 100 : 0);
+    const lim = Math.max(0, pool), stt = lim ? budgetStatus(restSpent, lim) : (restSpent > 0 ? 'over' : 'ok'), p = lim ? restSpent / lim * 100 : (restSpent ? 100 : 0);
     const restCard = withB.length ? `<div class="catcard"><div class="top"><span class="ic" style="background:var(--surface-3);color:var(--muted)">${icon('layers', 22)}</span>
         <div class="g"><div class="t">Everything else</div><div class="s n">${esc(fmt(restSpent))} of ${esc(fmt(lim))} · ${restCats} categories</div></div>
         <div class="r ${stt === 'over' ? 'red' : stt === 'warn' ? 'amber' : ''}">${Math.round(p)}%</div></div>
