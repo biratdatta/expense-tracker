@@ -167,7 +167,7 @@ const txt=(d,s)=>d.querySelector(s)?.textContent.replace(/\s+/g,' ').trim();
  const pz=E("S.expenses.find(e=>e.note==='Pizza')"); const owed=E("S.ious.filter(i=>i.note==='Split: Pizza').map(i=>i.amount)");
  eq('split stored share', [pz.amount, pz.split], [333.33,{total:1000,n:3}]);
  eq('others owe the rest (no paisa lost)', [owed, Math.round((pz.amount+owed.reduce((a,b)=>a+b,0))*100)/100], [[666.67],1000]);
- E("openExpense(S.expenses.find(e=>e.note==='Pizza').id)"); eq('editing shows full bill', d.getElementById('txAmount').value, '1000');
+ E("openExpense(S.expenses.find(e=>e.note==='Pizza').id)"); eq('editing shows full bill', d.getElementById('txAmount').value, '1,000');
  d.getElementById('txAmount').value='1200'; d.getElementById('txForm').dispatchEvent(new w.Event('submit',{cancelable:true})); await sleep(120);
  eq('editing split bill recomputes share', E("S.expenses.find(e=>e.note==='Pizza').amount"), 400);
 
@@ -241,6 +241,77 @@ const txt=(d,s)=>d.querySelector(s)?.textContent.replace(/\s+/g,' ').trim();
 
  // ---------- Q. SMS amounts
  eq('SMS amounts & kind', E(`[parseSms('Rs.1,23,456.78 debited from A/c XX12 on 05-Oct-26 to VPA shop@okaxis').amount, parseSms('INR 99 spent on card at UBER on 2026-10-09').amount, parseSms('Rs 5,000 credited to your A/c by NEFT from ACME').kind]`), [123456.78, 99, 'income']);
+
+ // ---------- R. Income-linked budget
+ { const A=await app(); const {E:E8,d:d8,w:w8}=A; allErrs.push(A.errs);
+   await X(E8,[{amount:61234,kind:'income',source:'Salary',categoryId:null,date:'2026-10-01'},{amount:20000,cat:3,date:'2026-10-02'},{amount:5000,cat:1,date:'2026-10-05'}]);
+   eq('basis = income received', E8("incomeBasis('2026-10')"), {amount:61234,from:'received'});
+   eq('basis falls back to last month', E8("incomeBasis('2026-11')"), {amount:61234,from:'last'});
+   eq('no basis two months later', E8("incomeBasis('2026-12')"), {amount:0,from:null});
+   E8("S.recurring.push({id:'sal',name:'Salary',amount:70000,kind:'income',source:'Salary',day:1,start:'2026-11',lastPosted:'2026-11',active:true,createdAt:1})");
+   eq('basis uses salary repeat before it lands', E8("incomeBasis('2026-12')"), {amount:70000,from:'expected'});
+   E8("S.recurring=[]");
+   // one-tap: 80% of 61,234 = 48,987.2 → rounded to ₹100 = 49,000 (saved as a normal budget)
+   E8("S.month='2026-10'"); await E8("budgetFromIncome(80)");
+   eq('one-tap 80% → manual budget', [E8("budgetFor(TOTAL_KEY,'2026-10').limit"), E8("isAutoBudget('2026-10')")], [49000,false]);
+   // automatic: manual 49,000 stays for Sep; from Oct budget = 70% of income; manual ignored while on
+   E8("S.budgets['2026-09|'+TOTAL_KEY]={key:'2026-09|'+TOTAL_KEY,month:'2026-09',categoryId:TOTAL_KEY,limit:30000}");
+   await E8("setAutoIncome(true)"); await E8("budgetFromIncome(70)");
+   eq('auto setting', E8("S.settings.incomeBudget"), {pct:70,since:'2026-10'});
+   eq('auto budget = 70% of income, rounded', E8("effectiveBudget('2026-10')"), 42900);
+   eq('months before “since” untouched', E8("effectiveBudget('2026-09')"), 30000);
+   eq('next month auto from last month’s income', E8("effectiveBudget('2026-11')"), 42900);
+   E8("S.budgets['2026-10|'+S.categories[1].id]={key:'2026-10|'+S.categories[1].id,month:'2026-10',categoryId:S.categories[1].id,limit:6000}");
+   eq('category limits sit inside the auto budget', E8("allocLine('2026-10').replace(/<[^>]+>/g,'')"), '₹6,000 set aside in category limits · ₹36,900 left for everything else.');
+   E8("go('home')"); eq('dashboard uses auto budget', txt(d8,'.hero .cols > div:first-child .v'), '₹42,900');
+   E8("go('budget')"); eq('budget card label', txt(d8,'.btotal .cap'), 'Monthly budget · 70% of income');
+   // salary raise mid-month → budget follows
+   await X(E8,[{amount:10000,kind:'income',source:'Freelance',categoryId:null,date:'2026-10-08'}]);
+   eq('extra income raises auto budget (70% of 71,234)', E8("effectiveBudget('2026-10')"), 49900);
+   // turn off → freezes current amounts, nothing jumps
+   await E8("setAutoIncome(false)");
+   eq('auto off', E8("S.settings.incomeBudget"), null);
+   eq('frozen Oct & Sep kept', [E8("effectiveBudget('2026-10')"), E8("effectiveBudget('2026-09')")], [49900,30000]);
+   // over-income warning
+   E8("S.budgets['2026-10|'+TOTAL_KEY].limit=80000"); E8("go('budget')");
+   eq('warns when budget > income', txt(d8,'#main .alert'), 'Your budget is ₹8,766 more than your income (₹71,234, income received this month).'); }
+
+ // ---------- S. Month-end leftover → savings (today 10 Oct: September just ended)
+ { const A=await app(); const {E:E9,d:d9,w:w9}=A; allErrs.push(A.errs);
+   await X(E9,[{amount:20000,cat:0,date:'2026-09-05'},{amount:5000,cat:1,date:'2026-09-20'},{amount:1000,cat:1,date:'2026-09-21',kind:'credit'}]);
+   E9("S.budgets['2026-09|'+TOTAL_KEY]={key:'2026-09|'+TOTAL_KEY,month:'2026-09',categoryId:TOTAL_KEY,limit:30000}");
+   eq('leftover = 30,000 − (25,000 − 1,000 refund)', E9("leftoverInfo()"), {key:'2026-09',budget:30000,spent:24000,left:6000});
+   E9("go('home')"); eq('leftover card without goals offers a goal', !!d9.querySelector('[data-action=leftover-goal]'), true);
+   await E9(`(async()=>{ S.goals.push({id:'g',name:'Goa',icon:'plane',color:'#06B6D4',target:40000,start:'2026-09-01',contributions:[],createdAt:1}); await dbPut('goals',S.goals[0]); render(); })()`);
+   d9.querySelector('[data-action=leftover-move]').click(); d9.querySelector('#sheetBody [data-action=pick-goal]').click(); await sleep(30);
+   eq('move prefills leftover', d9.getElementById('contribAmt').value, '6,000');
+   d9.getElementById('sheetForm').dispatchEvent(new w9.Event('submit',{cancelable:true})); await sleep(120);
+   eq('moved into goal', E9("goalInfo(S.goals[0]).saved"), 6000);
+   eq('offer marked handled', [E9("leftoverInfo()"), E9("S.settings.leftoverDone['2026-09']")], [null,true]);
+   // a later normal contribution must not be mistaken for a leftover
+   eq('pending cleared', E9("S.pendingLeftover"), null);
+   E9("S.settings.leftoverDone={}; S.budgets['2026-09|'+TOTAL_KEY].limit=20000");
+   eq('overspent month → no offer', E9("leftoverInfo()"), null);
+   E9("S.budgets['2026-09|'+TOTAL_KEY].limit=30000; S.expenses=S.expenses.filter(e=>e.date.slice(0,7)!=='2026-09')");
+   eq('empty month → no offer', E9("leftoverInfo()"), null);
+   E9("S.settings.mode='basic'; go('home')"); eq('basic mode hides leftover card', !!d9.querySelector('[data-action=leftover-move],[data-action=leftover-goal]'), false); }
+
+ // ---------- T. Live Indian commas in money fields
+ { const A=await app(); const {E:Et,d:dt,w:wt}=A; allErrs.push(A.errs);
+   eq('groupIN', Et("['1111111','1234567.891','100000','999','0012','.5','12,34,5'].map(groupIN)"), ['11,11,111','12,34,567.89','1,00,000','999','12','0.5','12,345']);
+   Et("openExpense()"); const inp=dt.getElementById('txAmount');
+   const type=v=>{ inp.value=v; inp.setSelectionRange(v.length,v.length); inp.dispatchEvent(new wt.Event('input',{bubbles:true})); };
+   type('1111111'); eq('typing shows 11,11,111', inp.value, '11,11,111');
+   eq('caret stays at end', inp.selectionStart, inp.value.length);
+   inp.value='11,11,111'; inp.setSelectionRange(2,2); inp.value='121,11,111'; inp.setSelectionRange(3,3); inp.dispatchEvent(new wt.Event('input',{bubbles:true}));
+   eq('editing in the middle regroups & keeps caret after typed digit', [inp.value, inp.selectionStart], ['1,21,11,111',4]);
+   type('2500'); dt.querySelector('[data-action=quick-amt][data-amt="500"]').click(); eq('quick amount keeps commas', inp.value, '3,000');
+   type('125000'); dt.querySelectorAll('input[name=txCat]')[0].checked=true; dt.getElementById('txForm').dispatchEvent(new wt.Event('submit',{cancelable:true})); await sleep(120);
+   eq('saves the real number', Et("S.expenses.at(-1).amount"), 125000);
+   Et("openExpense(S.expenses.at(-1).id)"); eq('editing shows commas', dt.getElementById('txAmount').value, '1,25,000'); dt.getElementById('txDlg').close();
+   Et("S.budgetEdit=true; go('budget'); S.budgetEdit=true; render()"); const ov=dt.getElementById('overallInput'); ov.value='3500000'; ov.dispatchEvent(new wt.Event('input',{bubbles:true}));
+   eq('budget field commas', ov.value, '35,00,000'); ov.dispatchEvent(new wt.Event('change',{bubbles:true})); await sleep(100);
+   eq('budget saved as number', Et("overallBudget(curCycle())"), 3500000); }
 
  console.log(`\n${pass} passed, ${fail} failed`); if(fails.length) console.log(fails.join('\n'));
  const flat=allErrs.flat(); if(flat.length) console.log('runtime errors:',flat);

@@ -93,13 +93,13 @@ function renderOnb() {
         <option value="">Other</option>${[...Array(28)].map((_, i) => i + 1).filter(d => !days.includes(d)).map(d => `<option value="${d}" ${ONB.day === d ? 'selected' : ''}>${ordinal(d)}</option>`).join('')}</select></div>
     <p class="note" style="margin:0 2px 22px">${ONB.day === 1 ? 'Calendar month: 1st to the last day.' : `Example: ${ordinal(ONB.day)} Oct – ${ordinal(ONB.day - 1)} Nov.`}</p>
     <div class="flabel">Monthly take-home salary <span style="text-transform:none;letter-spacing:0;font-weight:500">(optional)</span></div>
-    <label class="bigamt"><span>₹</span><input id="onbSalary" inputmode="decimal" placeholder="e.g. 60,000" value="${esc(ONB.salary)}"></label>
+    <label class="bigamt"><span>₹</span><input id="onbSalary" inputmode="decimal" placeholder="e.g. 60,000" value="${esc(groupIN(ONB.salary))}"></label>
     <p class="note" style="margin:0 2px">We’ll add it automatically as income every month on your salary day, so you can see how much you save.</p>`; }
   if (st === 2) { const sal = parseAmount(ONB.salary) || 0, sugg = [15000, 25000, 40000, 60000];
     const s70 = sal ? Math.round(sal * .7 / 1000) * 1000 : 0;
     h = `<div class="hero-ic">${icon('target', 40, 1.8)}</div>
     <h2>Set a monthly budget</h2><p class="lead">One number for all your spending. You can add limits for specific categories later — only if you want.</p>
-    <label class="bigamt"><span>₹</span><input id="onbBudget" inputmode="decimal" placeholder="e.g. 30,000" value="${esc(ONB.budget)}"></label>
+    <label class="bigamt"><span>₹</span><input id="onbBudget" inputmode="decimal" placeholder="e.g. 30,000" value="${esc(groupIN(ONB.budget))}"></label>
     <div class="chips">${s70 ? `<button type="button" class="chip" data-action="onb-budget" data-v="${s70}">${esc(fmt(s70))} · 70% of salary</button>` : ''}${sugg.filter(v => v !== s70).map(v => `<button type="button" class="chip" data-action="onb-budget" data-v="${v}">${esc(fmt(v))}</button>`).join('')}</div>
     <p class="note" style="margin:6px 2px 0">Not sure? Leave it empty and set it later from the Budget tab.</p>`; }
   $('onbBody').innerHTML = h; $('onbBody').scrollTop = 0;
@@ -188,6 +188,28 @@ async function setMode(m) {
   if (changed) toast(m === 'advanced' ? 'Advanced mode on — all features unlocked' : 'Basic mode on — your data from advanced features is kept');
 }
 
+/* ================= Income-linked budget ================= */
+async function budgetFromIncome(pct) {
+  const m = S.month, b = incomeBasis(m); if (!(b.amount > 0)) return toast('No income found yet');
+  if (autoIncome()) { await setSetting('incomeBudget', { ...autoIncome(), pct }); render(); return toast(`Budget now follows ${pct}% of income: ${fmt(autoBudget(m))}`); }
+  const limit = Math.round(b.amount * pct / 100 / 100) * 100, bud = { key: `${m}|${TOTAL_KEY}`, month: m, categoryId: TOTAL_KEY, limit };
+  await dbPut('budgets', bud); S.budgets[bud.key] = bud; render(); toast(`Monthly budget set to ${fmt(limit)} (${pct}% of income)`);
+}
+async function setAutoIncome(on) {
+  const m = S.month, cur = curCycle();
+  if (on) {
+    if (!(incomeBasis(m).amount > 0)) { render(); return toast('Log your income first'); }
+    await setSetting('incomeBudget', { pct: autoIncome()?.pct || 80, since: m < cur ? m : cur });
+    render(); return toast(`Budget will stay at ${autoIncome().pct}% of income every month`);
+  }
+  // Turning off: freeze the automatic amounts as normal budgets so past and current months don't jump
+  const A = autoIncome(); if (!A) return render();
+  const frozen = [];
+  for (let k = A.since || cur, i = 0; k <= cur && i < 240; k = shiftMonth(k, 1), i++) { const v = autoBudget(k); if (v > 0) frozen.push({ key: `${k}|${TOTAL_KEY}`, month: k, categoryId: TOTAL_KEY, limit: v }); }
+  if (frozen.length) { await dbPut('budgets', ...frozen); frozen.forEach(b => S.budgets[b.key] = b); }
+  await setSetting('incomeBudget', null); render(); toast('Automatic budget off — kept your current amount');
+}
+
 /* ================= Events ================= */
 function go(view, sub = null) { S.view = view; S.sub = sub; S.budgetEdit = false; S.anim = 'enter'; render(); window.scrollTo(0, 0); }
 const reduceMotion = () => window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -215,11 +237,16 @@ document.addEventListener('click', e => {
     case 'onb-back': onbCollect(); ONB.step = Math.max(0, ONB.step - 1); ONB.dir = -1; renderOnb(); break;
     case 'onb-skip': finishOnboarding(true); break;
     case 'onb-day': onbCollect(); ONB.day = +t.dataset.d; renderOnb(); break;
-    case 'onb-budget': $('onbBudget').value = t.dataset.v; ONB.budget = t.dataset.v; break;
+    case 'onb-budget': $('onbBudget').value = moneyVal(t.dataset.v); ONB.budget = t.dataset.v; break;
     case 'run-setup': openOnboarding(); break;
     case 'onb-mode': onbCollect(); ONB.mode = t.dataset.m; renderOnb(); break;
     case 'edit-mode': openSheet('mode'); break;
     case 'set-mode': setMode(t.dataset.m); break;
+    case 'budget-from-income': budgetFromIncome(+t.dataset.pct); break;
+    case 'auto-income-off': setAutoIncome(false); break;
+    case 'leftover-move': S.pendingLeftover = t.dataset.k; S.moveAmt = +t.dataset.amt; openSheet('pickgoal'); break;
+    case 'leftover-goal': setSetting('leftoverDone', { ...(S.settings.leftoverDone || {}), [t.dataset.k]: true }).then(() => go('plan')).then(() => openGoalEditor(null, GOAL_SUGGESTIONS[0])); break;
+    case 'leftover-dismiss': setSetting('leftoverDone', { ...(S.settings.leftoverDone || {}), [t.dataset.k]: true }).then(() => { render(); toast('Okay — I’ll ask again next month'); }); break;
     case 'hide-nudge': setSetting('hideAdvNudge', true).then(() => { render(); toast('Find more in Profile → App mode'); }); break;
     case 'add-income': openExpense(null, { kind: 'income' }); break;
     case 'quick-add': quickAdd(id); break;
@@ -242,8 +269,8 @@ document.addEventListener('click', e => {
     case 'settle-iou': setIou(id, { settled: true, settledAt: Date.now() }).then(n => { $('sheetDlg').close(); render(); toast(`Settled with ${n.person}`, 'Undo', () => setIou(id, { settled: undefined, settledAt: undefined }).then(render)); }); break;
     case 'unsettle-iou': setIou(id, { settled: undefined, settledAt: undefined }).then(() => { $('sheetDlg').close(); render(); }); break;
     case 'delete-iou': if (confirm('Delete this entry?')) dbDel('ious', id).then(() => { S.ious = S.ious.filter(i => i.id !== id); $('sheetDlg').close(); render(); toast('Deleted'); }); break;
-    case 'save-to-goal': S.moveAmt = +t.dataset.amt; openSheet('pickgoal'); break;
-    case 'pick-goal': S.goalId = id; S.contribSign = 1; openSheet('contrib'); setTimeout(() => { $('contribAmt').value = S.moveAmt; $('contribNote').value = 'Monthly savings'; }, 0); break;
+    case 'save-to-goal': S.pendingLeftover = null; S.moveAmt = +t.dataset.amt; openSheet('pickgoal'); break;
+    case 'pick-goal': S.goalId = id; S.contribSign = 1; openSheet('contrib'); setTimeout(() => { $('contribAmt').value = moneyVal(S.moveAmt); $('contribNote').value = 'Monthly savings'; }, 0); break;
     case 'cal-day': S.calDay = t.dataset.d === S.calDay ? null : t.dataset.d; render(); break;
     case 'report': openReport(); break;
     case 'share-report': shareReport(); break;
@@ -252,7 +279,7 @@ document.addEventListener('click', e => {
     case 'sms-fill': { const p = parseSms($('smsText').value); $('sheetDlg').close(); applyParsed(p); break; }
     case 'edit-expense': openExpense(id); break;
     case 'delete-expense': deleteExpense(); break;
-    case 'quick-amt': $('txAmount').value = round2((parseAmount($('txAmount').value) || 0) + Number(t.dataset.amt)); syncOptions(); break;
+    case 'quick-amt': $('txAmount').value = moneyVal(round2((parseAmount($('txAmount').value) || 0) + Number(t.dataset.amt))); syncOptions(); break;
     case 'close-dlg': t.closest('dialog').close(); break;
     case 'back': S.sub = null; S.anim = 'enter'; render(); window.scrollTo(0, 0); break;
     case 'home-period': S.homePeriod = t.dataset.p; S.anim = 'charts'; render(); break;
@@ -290,8 +317,8 @@ document.addEventListener('click', e => {
     case 'edit-goal': openGoalEditor(id); break;
     case 'delete-goal': deleteGoal(); break;
     case 'open-goal': S.goalId = id; openSheet('goal'); break;
-    case 'contrib': S.goalId = id; S.contribSign = +t.dataset.sign; openSheet('contrib'); break;
-    case 'contrib-quick': $('contribAmt').value = round2((parseAmount($('contribAmt').value) || 0) + Number(t.dataset.amt)); break;
+    case 'contrib': S.pendingLeftover = null; S.goalId = id; S.contribSign = +t.dataset.sign; openSheet('contrib'); break;
+    case 'contrib-quick': $('contribAmt').value = moneyVal(round2((parseAmount($('contribAmt').value) || 0) + Number(t.dataset.amt))); break;
     case 'del-contrib': deleteContribution(id); break;
     case 'set-theme': setTheme(t.dataset.t).then(() => { $('sheetDlg').close(); toast(`Appearance: ${THEMES.find(x => x[0] === t.dataset.t)[2]}`); }); break;
     case 'toggle-theme': setTheme(effectiveTheme() === 'dark' ? 'light' : 'dark'); break;
@@ -302,10 +329,18 @@ document.addEventListener('click', e => {
     case 'erase': eraseAll(); break;
   }
 });
+document.addEventListener('input', e => {
+  const el = e.target;
+  if (el.matches && el.matches('input[inputmode="decimal"]')) {   // live Indian commas, caret kept after the same digit
+    const pos = el.selectionStart ?? el.value.length, before = el.value.slice(0, pos).replace(/[^\d.]/g, '').length, next = groupIN(el.value);
+    if (next !== el.value) { el.value = next; let n = 0, p = 0; while (p < next.length && n < before) { if (/[\d.]/.test(next[p])) n++; p++; } try { el.setSelectionRange(p, p); } catch {} }
+  }
+}, true);
 document.addEventListener('input', e => { if (['txAmount'].includes(e.target.id)) syncOptions();
   if (e.target.classList.contains('advin')) { S.txAdv[{ fMin: 'min', fMax: 'max', fFrom: 'from', fTo: 'to' }[e.target.id]] = e.target.value; $('txList').innerHTML = txListHTML(); } if (e.target.id === 'txSearch') { S.txSearch = e.target.value; $('txList').innerHTML = txListHTML(); } });
 document.addEventListener('change', async e => {
   if (['txRepeat', 'txSplit', 'txDate'].includes(e.target.id)) syncOptions();
+  if (e.target.id === 'autoIncome') setAutoIncome(e.target.checked);
   if (e.target.id === 'onbDayOther' && e.target.value) { onbCollect(); ONB.day = +e.target.value; renderOnb(); }
   if (e.target.id === 'cycleSel') { const d = +e.target.value; $('cyclePrev').textContent = d === 1 ? 'Each budget month runs from the 1st to the last day.' : `Example: ${ordinal(d)} Oct – ${ordinal(d - 1)} Nov. A cycle is named after the month it starts in.`; }
   if (e.target.matches('.binput')) saveBudget(e.target);

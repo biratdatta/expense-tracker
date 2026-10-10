@@ -38,6 +38,14 @@ function forecastInfo(m) {
   const projected = round2(spent + variable / elapsed * left + upcoming);
   return { spent, avg: spent / elapsed, projected, upcoming, end: r.end, elapsed };
 }
+function leftoverCard() {
+  const L = leftoverInfo(); if (!L) return '';
+  const hasGoals = S.goals.some(g => goalInfo(g).state !== 'done');
+  return `<section class="card insight" style="border-color:rgba(34,197,94,.3);background:linear-gradient(180deg,rgba(34,197,94,.10),rgba(34,197,94,.02))"><span class="ib" style="color:var(--green)">${icon('piggy', 22)}</span>
+    <div style="flex:1"><b>You saved ${esc(fmt(L.left))} from ${esc(cycleDay() === 1 ? monthLabel(L.key, 'name') : cycleLabel(L.key))}’s budget 🎉</b><div class="muted" style="font-size:13px;margin-top:2px">Spent ${esc(fmt(L.spent))} of ${esc(fmt(L.budget))}. Put the rest to work?</div>
+    <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">${hasGoals ? `<button class="setbtn" data-action="leftover-move" data-amt="${L.left}" data-k="${L.key}">Move to a goal</button>` : `<button class="setbtn" data-action="leftover-goal" data-k="${L.key}">Start a savings goal</button>`}
+    <button class="lnk" data-action="leftover-dismiss" data-k="${L.key}" style="color:var(--muted)">Not now</button></div></div></section>`;
+}
 function viewHome() {
   const m = curCycle(), r = cycleRange(m), today = todayStr();
   const spent = Math.max(0, spendSum(expensesIn(r.start, r.end))), target = effectiveBudget(m);
@@ -131,7 +139,7 @@ function viewHome() {
   return `<header class="head"><div><div class="eyebrow">${esc(new Date().toLocaleDateString(LOCALE, { weekday: 'long', day: 'numeric', month: 'long' }))}</div><h1>Dashboard</h1><div class="subt">${name ? `Namaste, ${esc(name.split(' ')[0])} · ` : ''}${esc(cycleLabel(m))}</div></div>
       <div style="display:flex;gap:10px"><button class="rbtn" data-action="toggle-theme" aria-label="Switch to ${effectiveTheme() === 'dark' ? 'light' : 'dark'} mode">${icon(effectiveTheme() === 'dark' ? 'sun' : 'moon', 20)}</button>
       <button class="rbtn" data-action="to-tx" aria-label="Search transactions">${icon('search', 20)}</button></div></header>
-    ${hero}${adv ? forecast + flow + quick : ''}${pills}${breakdown}${adv ? upcoming + iouCard + goalTeaser : ''}${recentHtml}${adv || S.settings.hideAdvNudge ? '' : nudge}`;
+    ${hero}${adv ? leftoverCard() + forecast + flow + quick : ''}${pills}${breakdown}${adv ? upcoming + iouCard + goalTeaser : ''}${recentHtml}${adv || S.settings.hideAdvNudge ? '' : nudge}`;
 }
 
 /* ================= Lent & borrowed ================= */
@@ -159,7 +167,7 @@ function iouFormHTML(i) {
     <div class="seg" style="margin-bottom:14px"><button type="button" data-action="iou-dir" data-k="lent" class="${dir === 'lent' ? 'on' : ''}">I lent</button><button type="button" data-action="iou-dir" data-k="borrowed" class="${dir === 'borrowed' ? 'on' : ''}">I borrowed</button></div>
     <input type="hidden" id="iDir" value="${dir}">
     <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:10px"><label class="irow"><input id="iPerson" maxlength="30" placeholder="Name, e.g. Rahul" value="${esc(i?.person || '')}"></label>
-      <label class="irow"><span style="font-weight:700;color:var(--accent)">₹</span><input id="iAmt" inputmode="decimal" placeholder="Amount" value="${i?.amount || ''}"></label></div>
+      <label class="irow"><span style="font-weight:700;color:var(--accent)">₹</span><input id="iAmt" inputmode="decimal" placeholder="Amount" value="${moneyVal(i?.amount || '')}"></label></div>
     <label class="irow"><input id="iNote" maxlength="50" placeholder="What for? (optional)" value="${esc(i?.note || '')}"></label>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <label class="irow"><span class="muted" style="font-size:12px;white-space:nowrap">On</span><input type="date" id="iDate" value="${i?.date || todayStr()}" max="${todayStr()}"></label>
@@ -262,8 +270,11 @@ function viewStats() {
 function viewBudget() {
   const m = S.month, r = cycleRange(m);
   const spend = totalsByCat(expensesIn(r.start, r.end));
-  const spent = sum(Object.values(spend)), total = effectiveBudget(m);
+  const spent = Math.max(0, spendSum(expensesIn(r.start, r.end))), total = effectiveBudget(m);
   const overall = overallBudget(m), catSum = totalBudget(m), pool = round2(overall - catSum);
+  const basis = incomeBasis(m), auto = isAutoBudget(m), A = autoIncome();
+  const overIncome = basis.amount > 0 && total > basis.amount
+    ? `<div class="alert" style="margin:0 0 16px">${icon('alert', 15, 2.2)} Your budget is ${esc(fmt(total - basis.amount))} more than your income (${esc(fmt(basis.amount))}, ${esc(incomeBasisLabel(basis))}).</div>` : '';
   const pct = total ? spent / total * 100 : 0, st = budgetStatus(spent, total);
   const ringLen = Math.min(100, pct);
   const head = `<header class="head"><div><h1>Budget</h1>
@@ -271,7 +282,7 @@ function viewBudget() {
     <button class="rbtn ${S.budgetEdit ? 'on' : ''}" data-action="budget-edit" aria-label="Edit budgets">${icon(S.budgetEdit ? 'tick' : 'sliders', 20, 2)}</button></header>`;
 
   const totalCard = `<section class="card btotal">
-    <div class="row"><div><div class="cap">${overall ? 'Monthly budget' : 'Total of category limits'}</div><div class="amt num countup" id="bTotal">${total ? esc(fmt(total)) : '—'}</div>
+    <div class="row"><div><div class="cap">${auto ? `Monthly budget · ${A.pct}% of income` : overall ? 'Monthly budget' : 'Total of category limits'}</div><div class="amt num countup" id="bTotal">${total ? esc(fmt(total)) : '—'}</div>
       ${overall && catSum ? `<div class="muted" style="font-size:12.5px;margin-top:4px">${esc(fmt(catSum))} in category limits · ${pool >= 0 ? esc(fmt(pool)) + ' for everything else' : `<span class="red">limits exceed budget by ${esc(fmt(-pool))}</span>`}</div>` : ''}</div>
       <svg class="ring" viewBox="0 0 36 36"><circle cx="18" cy="18" r="15.9155" fill="none" stroke="var(--surface-3)" stroke-width="3.2"/>
         ${total ? `<circle cx="18" cy="18" r="15.9155" fill="none" class="arc" stroke="${STATUS_COLOR[st]}" stroke-width="3.2" stroke-linecap="round" stroke-dasharray="${ringLen} ${100 - ringLen}" transform="rotate(-90 18 18)"/>` : ''}
@@ -280,17 +291,23 @@ function viewBudget() {
       <div><div class="cap">${total && spent > total ? 'Over' : 'Left'}</div><div class="v num ${total && spent > total ? 'red' : 'green'}">${total ? esc(fmt(Math.abs(total - spent))) : '—'}</div></div></div></section>`;
 
   if (S.budgetEdit) {
-    const ob = budgetFor(TOTAL_KEY, m);
+    const ob = budgetFor(TOTAL_KEY, m), adv = isAdvanced(), pctNow = A ? A.pct : 80;
+    const incomeBlock = adv ? (basis.amount > 0 ? `<div class="incb">
+        <div class="incrow"><span>${icon('rupee', 16, 2.2)} Income: <b>${esc(fmt(basis.amount))}</b> <span class="muted">· ${esc(incomeBasisLabel(basis))}</span></span></div>
+        <div class="chips" style="flex-wrap:wrap;margin:10px 0 0;padding:0">${[60, 70, 80, 90].map(p => `<button class="chip ${auto && A.pct === p ? 'on' : ''}" data-action="budget-from-income" data-pct="${p}">${p}% · ${esc(fmtShort(Math.round(basis.amount * p / 100 / 100) * 100))}</button>`).join('')}</div>
+        <label class="incauto"><div><b>Keep it at ${pctNow}% of income</b><small>Updates by itself each month as income comes in${A && A.since ? ` · since ${esc(cycleLabel(A.since, true))}` : ''}</small></div><input type="checkbox" class="sw" id="autoIncome" ${A ? 'checked' : ''} aria-label="Keep budget at a percentage of income"></label>
+      </div>` : `<div class="incb muted" style="font-size:12.5px">${icon('rupee', 15, 2.2)} Log your income, or add your salary as a monthly repeat, to set your budget from income.</div>`)
+      : (A ? `<div class="incb" style="font-size:12.5px">Your budget follows <b>${A.pct}% of income</b> (set in Advanced mode). <button class="lnk" data-action="auto-income-off">Turn off</button></div>` : '');
     const overallCard = `<section class="card" style="border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)">
       <div class="top" style="display:flex;align-items:center;gap:14px"><span class="ic" style="background:var(--accent-soft);color:var(--accent)">${icon('wallet', 22)}</span>
-        <div style="flex:1;min-width:0"><div style="font-weight:700">Overall monthly budget</div><div class="muted" style="font-size:12.5px" id="bsub-${TOTAL_KEY}">${ob.inherited ? `Carried from ${esc(monthLabel(ob.from, 'short'))}` : 'One number for the whole month'}</div></div>
-        <input class="binput" id="overallInput" type="text" inputmode="decimal" placeholder="₹ —" data-cat="${TOTAL_KEY}" value="${ob.limit || ''}" aria-label="Overall monthly budget"></div>
-      <div class="muted" style="font-size:12.5px;margin-top:12px;line-height:1.45" id="bAlloc">${allocLine(m)}</div></section>`;
+        <div style="flex:1;min-width:0"><div style="font-weight:700">Overall monthly budget</div><div class="muted" style="font-size:12.5px" id="bsub-${TOTAL_KEY}">${auto ? `${A.pct}% of ${esc(incomeBasisLabel(basis))}` : ob.inherited ? `Carried from ${esc(monthLabel(ob.from, 'short'))}` : 'One number for the whole month'}</div></div>
+        <input class="binput" id="overallInput" type="text" inputmode="decimal" placeholder="₹ —" data-cat="${TOTAL_KEY}" value="${moneyVal(auto ? autoBudget(m) : ob.limit)}" ${auto ? 'disabled title="Set automatically from income"' : ''} aria-label="Overall monthly budget"></div>
+      <div class="muted" style="font-size:12.5px;margin-top:12px;line-height:1.45" id="bAlloc">${allocLine(m)}</div>${incomeBlock}</section>`;
     const rows = S.categories.map(c => { const b = budgetFor(c.id, m);
       return `<div class="catcard"><div class="top">${tint(c)}<div class="g"><div class="t">${esc(c.name)}</div>
         <div class="s n" id="bsub-${c.id}">Spent ${esc(fmt(spend[c.id] || 0))}${b.inherited ? ` · from ${esc(monthLabel(b.from, 'short'))}` : ''}</div></div>
-        <input class="binput" type="text" inputmode="decimal" placeholder="Optional" data-cat="${c.id}" value="${b.limit || ''}" aria-label="Monthly limit for ${esc(c.name)}"></div></div>`; }).join('');
-    return head + `<div class="sec" style="margin-top:4px"><h2>Edit budget</h2><button class="lnk cap" data-action="budget-edit">DONE</button></div>${overallCard}
+        <input class="binput" type="text" inputmode="decimal" placeholder="Optional" data-cat="${c.id}" value="${moneyVal(b.limit)}" aria-label="Monthly limit for ${esc(c.name)}"></div></div>`; }).join('');
+    return head + `<div class="sec" style="margin-top:4px"><h2>Edit budget</h2><button class="lnk cap" data-action="budget-edit">DONE</button></div>${overIncome}${overallCard}
       <div class="sec"><h2>Category limits <span class="muted" style="font-size:13px;font-weight:600">· optional</span></h2></div>
       <p class="note" style="margin:-6px 4px 14px">Only add limits for categories you want to watch closely. Everything without a limit is covered by your overall budget.</p>${rows}
       <p class="note">Budgets carry over to the following months automatically. A change here applies from ${esc(cycleLabel(m))} onward. Leave a field blank to remove it.</p>`;
@@ -325,7 +342,7 @@ function viewBudget() {
       (unb.length ? `<div class="sec"><h2>No limit set</h2></div><div class="slist">${unb.map(c => `<div class="srow">${tint(c, 42, 14)}<div class="t">${esc(c.name)}<small>Spent ${esc(fmt(spend[c.id]))}</small></div><button class="setbtn" data-action="budget-edit">Set</button></div>`).join('')}</div>` : '');
   }
   const catHead = withB.length ? `<div class="sec"><h2>Category limits</h2><button class="lnk cap" data-action="budget-edit">EDIT</button></div>` : `<div class="sec"><h2>Spending</h2><button class="lnk cap" data-action="budget-edit">ADD LIMITS</button></div>`;
-  return head + totalCard + catHead + cards + rest;
+  return head + totalCard + overIncome + catHead + cards + rest;
 }
 
 function viewProfile() {
@@ -405,8 +422,8 @@ function viewTransactions() {
   const A = S.txAdv, n = advCount(), adv = isAdvanced();
   const panel = S.txPanel && adv ? `<section class="card fpanel">
       <div class="flabel">Amount</div>
-      <div class="two"><label class="irow"><span style="font-weight:700;color:var(--accent)">₹</span><input id="fMin" class="advin" inputmode="decimal" placeholder="Min" value="${esc(A.min)}"></label>
-        <label class="irow"><span style="font-weight:700;color:var(--accent)">₹</span><input id="fMax" class="advin" inputmode="decimal" placeholder="Max" value="${esc(A.max)}"></label></div>
+      <div class="two"><label class="irow"><span style="font-weight:700;color:var(--accent)">₹</span><input id="fMin" class="advin" inputmode="decimal" placeholder="Min" value="${esc(groupIN(A.min))}"></label>
+        <label class="irow"><span style="font-weight:700;color:var(--accent)">₹</span><input id="fMax" class="advin" inputmode="decimal" placeholder="Max" value="${esc(groupIN(A.max))}"></label></div>
       <div class="flabel">Date</div>
       <div class="chips">${[['cycle', cycleDay() === 1 ? 'This month' : 'This cycle'], ['last', cycleDay() === 1 ? 'Last month' : 'Last cycle'], ['7', 'Last 7 days'], ['30', 'Last 30 days'], ['year', 'This year']].map(([k, l]) => { const [a, b] = datePreset(k); return `<button class="chip ${A.from === a && A.to === b ? 'on' : ''}" data-action="tx-date" data-k="${k}">${l}</button>`; }).join('')}</div>
       <div class="two"><label class="irow"><span class="muted" style="font-size:12px">From</span><input type="date" id="fFrom" class="advin" value="${esc(A.from)}"></label>

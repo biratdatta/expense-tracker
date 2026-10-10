@@ -10,6 +10,8 @@ A private expense tracker that runs in your browser. All data is stored **on you
 - Plan: savings goals (e.g. Emergency Fund, Goa Trip) with target amount and date, add/withdraw money, schedule tracking ("You're 30% behind schedule — save ₹X/month") and progress rings
 - Income, refunds and cash flow: log salary and other income, see savings and savings rate, and move savings into a goal; refunds subtract from spending
 - Recurring entries: rent, EMI, subscriptions, maid salary, SIP or salary are added automatically on their day each month (catches up if the app wasn't opened); subscriptions show a yearly total; upcoming bills on the dashboard
+- Income-linked budget: one tap sets your budget to 60–90% of income, or keep it at a % automatically every month (uses income received, your salary repeat before it lands, or last month's income); warns if budget is more than income; at month-end, unspent budget can be moved into a goal
+- Money fields show Indian commas as you type (11,11,111)
 - Budget cycle from salary day (e.g. 25th → 25 Oct – 24 Nov) for the dashboard, budgets and stats
 - Month-end forecast: daily average and projected total vs budget, including upcoming bills
 - Quick-add buttons (Chai ₹20, Metro ₹40…) for one-tap logging with Undo

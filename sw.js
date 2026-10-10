@@ -1,6 +1,6 @@
 // Offline support: caches the app's own files only. No data is ever sent anywhere.
 // Bump CACHE whenever you deploy a change so installed apps pick up the new version.
-const CACHE = 'expense-tracker-v11';
+const CACHE = 'expense-tracker-v12';
 const ASSETS = ['./', './index.html', './css/app.css', './js/core.js', './js/views.js', './js/features.js', './js/forms.js', './js/main.js',
   './manifest.webmanifest', './icon.svg', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 

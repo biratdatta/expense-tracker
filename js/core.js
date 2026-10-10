@@ -171,6 +171,16 @@ function fmtShort(n) {
   if (r2(a / 1e5) < 100) return `${s}₹${trim(a / 1e5)}L`;
   return `${s}₹${trim(a / 1e7)}Cr`;
 }
+/* Indian digit grouping for money inputs while typing: 1111111 → 11,11,111 (decimal point kept, max 2 decimals). */
+function groupIN(raw) {
+  let s = String(raw ?? '').replace(/[^\d.]/g, ''); if (!s) return '';
+  const i = s.indexOf('.');
+  let int = (i >= 0 ? s.slice(0, i) : s).replace(/^0+(?=\d)/, '');
+  const dec = i >= 0 ? s.slice(i + 1).replace(/\./g, '').slice(0, 2) : null;
+  const g = int.length > 3 ? int.slice(0, -3).replace(/\B(?=(\d{2})+(?!\d))/g, ',') + ',' + int.slice(-3) : int;
+  return dec !== null ? (g || '0') + '.' + dec : g;
+}
+const moneyVal = n => (n === '' || n == null || n === 0) ? '' : groupIN(String(n));
 function parseAmount(v) {
   v = String(v).replace(/[\s ]/g, '').replace(/[^\d.,-]/g, '');
   if (v.includes(',') && v.includes('.')) v = v.replace(/,/g, '');
@@ -227,8 +237,38 @@ const totalBudget = m => sum(S.categories.map(c => budgetFor(c.id, m).limit)); /
 /* Overall monthly budget: one number for everything. Category limits are optional sub-limits inside it.
    Stored like a category budget under a reserved id, so it carries over month to month the same way. */
 const TOTAL_KEY = '__overall__';
-const overallBudget = m => budgetFor(TOTAL_KEY, m).limit;
+/* ---- Income-linked budget ----
+   incomeBasis(m): what to base a budget on for cycle m, in this order:
+     1. income actually received in that cycle
+     2. expected monthly income from active income repeats (e.g. Salary on the 1st) — before salary lands
+     3. income received in the previous cycle
+   autoBudget(m): when “Keep my budget at X% of income” is on (from cycle `since` onward), X% of the basis, rounded to ₹100. */
+function incomeBasis(m) {
+  const r = cycleRange(m), got = sum(incomeIn(r.start, r.end).map(e => e.amount));
+  if (got > 0) return { amount: got, from: 'received' };
+  const exp = sum(S.recurring.filter(x => x.active && x.kind === 'income').map(x => x.amount));
+  if (exp > 0) return { amount: exp, from: 'expected' };
+  const p = cycleRange(shiftMonth(m, -1)), last = sum(incomeIn(p.start, p.end).map(e => e.amount));
+  if (last > 0) return { amount: last, from: 'last' };
+  return { amount: 0, from: null };
+}
+const incomeBasisLabel = b => ({ received: 'income received this month', expected: 'your monthly income repeat', last: 'last month’s income' })[b.from] || '';
+const autoIncome = () => S.settings.incomeBudget && S.settings.incomeBudget.pct > 0 ? S.settings.incomeBudget : null;
+function autoBudget(m) {
+  const a = autoIncome(); if (!a || (a.since && m < a.since)) return 0;
+  const b = incomeBasis(m); return b.amount > 0 ? Math.round(b.amount * a.pct / 100 / 100) * 100 : 0;
+}
+const isAutoBudget = m => autoBudget(m) > 0;
+const overallBudget = m => autoBudget(m) || budgetFor(TOTAL_KEY, m).limit;
 const effectiveBudget = m => overallBudget(m) || totalBudget(m);
+/* Month-end leftover: unspent budget from the cycle that just ended, offered as savings once per cycle. */
+function leftoverInfo() {
+  const prev = shiftMonth(curCycle(), -1), r = cycleRange(prev), list = expensesIn(r.start, r.end);
+  if (!list.some(e => e.kind !== 'credit')) return null;                    // nothing tracked last month → nothing to claim
+  if ((S.settings.leftoverDone || {})[prev]) return null;
+  const budget = effectiveBudget(prev), spent = Math.max(0, spendSum(list)), left = round2(budget - spent);
+  return budget > 0 && left > 0 ? { key: prev, budget, spent, left } : null;
+}
 function allocLine(m) {
   const o = overallBudget(m), c = totalBudget(m);
   if (!o && !c) return 'Tip: just set this one number. Category limits below are optional.';

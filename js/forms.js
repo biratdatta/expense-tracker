@@ -32,7 +32,7 @@ function openExpense(id, preset) {
   const e = id ? S.expenses.find(x => x.id === id) : null;
   S.editingExpense = e; S.splitN = 2;
   S.txKind = e ? (e.kind || 'expense') : (preset?.kind || 'expense');
-  $('txAmount').value = e ? (e.split ? e.split.total : e.amount) : (preset?.amount || '');
+  $('txAmount').value = moneyVal(e ? (e.split ? e.split.total : e.amount) : (preset?.amount || ''));
   $('txNote').value = e ? e.note : (preset?.note || '');
   $('txDate').value = e ? e.date : (preset?.date || todayStr());
   const [fk, fv] = S.txFilter ? S.txFilter.split(':') : [];
@@ -295,7 +295,7 @@ async function saveBudget(input) {
   if (limit === cur.limit && !cur.inherited) return;
   const b = { key: `${m}|${catId}`, month: m, categoryId: catId, limit };
   await dbPut('budgets', b); S.budgets[b.key] = b;
-  input.value = limit || '';
+  input.value = moneyVal(limit);
   if ($('bAlloc')) $('bAlloc').innerHTML = allocLine(m);
   if (catId === TOTAL_KEY) {
     $('bsub-' + catId).textContent = 'One number for the whole month';

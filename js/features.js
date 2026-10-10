@@ -67,7 +67,7 @@ function openGoalEditor(id, preset) {
   const p = preset || [];
   $('goalTitle').textContent = g ? 'Edit goal' : 'New goal';
   $('goalName').value = g ? g.name : (p[0] || '');
-  $('goalTarget').value = g ? g.target : (p[3] || '');
+  $('goalTarget').value = moneyVal(g ? g.target : (p[3] || ''));
   const d = new Date(); d.setFullYear(d.getFullYear() + 1);
   $('goalDate').value = g ? (g.deadline || '') : (p[0] ? ds(d) : '');
   $('goalDate').min = todayStr();
@@ -123,6 +123,8 @@ async function saveContribution() {
   const c = { id: uid(), amount: S.contribSign * amt, date, note: $('contribNote').value.trim(), at: Date.now() };
   const ng = { ...g, contributions: [...(g.contributions || []), c] };
   await dbPut('goals', ng); S.goals[S.goals.indexOf(g)] = ng;
+  if (S.pendingLeftover && S.contribSign > 0) { await setSetting('leftoverDone', { ...(S.settings.leftoverDone || {}), [S.pendingLeftover]: true }); }
+  S.pendingLeftover = null;
   $('sheetDlg').close(); render();
   const after = goalInfo(ng);
   toast(after.state === 'done' && gi.state !== 'done' ? `🎉 ${g.name} reached!` : `${S.contribSign > 0 ? 'Added' : 'Withdrew'} ${fmt(amt)} · ${g.name}`);
@@ -184,7 +186,7 @@ function ruleFormHTML(r, idea) {
     <input type="hidden" id="rKind" value="${kind}">
     <label class="irow"><input id="rName" maxlength="40" placeholder="Name, e.g. Rent or Netflix" value="${esc(r?.name || idea?.[0] || '')}"></label>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <label class="irow"><span style="font-weight:700;color:var(--accent)">₹</span><input id="rAmt" inputmode="decimal" placeholder="Amount" value="${r?.amount || idea?.[2] || ''}"></label>
+      <label class="irow"><span style="font-weight:700;color:var(--accent)">₹</span><input id="rAmt" inputmode="decimal" placeholder="Amount" value="${moneyVal(r?.amount || idea?.[2] || '')}"></label>
       <label class="irow"><span class="muted" style="font-size:13px">Day</span>${sel('rDay', [...Array(31)].map((_, i) => [i + 1, ordinal(i + 1)]), day)}</label></div>
     <label class="irow" id="rCatRow" ${kind === 'income' ? 'hidden' : ''}><span class="muted" style="font-size:13px">Category</span>${sel('rCat', S.categories.map(c => [c.id, c.name]), catId)}</label>
     <label class="irow" id="rSrcRow" ${kind === 'income' ? '' : 'hidden'}><span class="muted" style="font-size:13px">Source</span>${sel('rSrc', INCOME_SOURCES.map(([n]) => [n, n]), r?.source || 'Salary')}</label>
@@ -232,7 +234,7 @@ function favFormHTML(f) {
   const sel = (id, opts, val) => `<select id="${id}" style="flex:1;background:none;border:0;font-size:16px;color:var(--text);outline:0;height:100%">${opts.map(([v, l]) => `<option value="${esc(v)}" ${String(v) === String(val) ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
   return `<h3>${f ? 'Edit quick-add' : 'New quick-add'}</h3>
     <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:10px"><label class="irow"><input id="fName" maxlength="24" placeholder="Name, e.g. Chai" value="${esc(f?.name || '')}"></label>
-    <label class="irow"><span style="font-weight:700;color:var(--accent)">₹</span><input id="fAmt" inputmode="decimal" placeholder="Amount" value="${f?.amount || ''}"></label></div>
+    <label class="irow"><span style="font-weight:700;color:var(--accent)">₹</span><input id="fAmt" inputmode="decimal" placeholder="Amount" value="${moneyVal(f?.amount || '')}"></label></div>
     <label class="irow"><span class="muted" style="font-size:13px">Category</span>${sel('fCat', S.categories.map(c => [c.id, c.name]), f?.categoryId || S.categories[0]?.id)}</label>
     <label class="irow"><span class="muted" style="font-size:13px">Via</span>${sel('fPay', PAYMENT_MODES.map(([m]) => [m, m]), f?.payment || S.settings.defaultPayment || 'UPI')}</label>
     <div class="err" id="fErr"></div>
