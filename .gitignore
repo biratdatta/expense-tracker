@@ -1,0 +1,11 @@
+# macOS
+.DS_Store
+# Editors
+.vscode/
+.idea/
+# Wrangler / node (if you ever deploy from the CLI)
+node_modules/
+.wrangler/
+# Personal backups exported from the app — never commit your expense data
+expenses-backup-*.json
+expenses-*.csv
