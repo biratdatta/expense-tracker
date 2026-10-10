@@ -1,7 +1,8 @@
 // Offline support: caches the app's own files only. No data is ever sent anywhere.
 // Bump CACHE whenever you deploy a change so installed apps pick up the new version.
-const CACHE = 'expense-tracker-v8';
-const ASSETS = ['./', './index.html', './manifest.webmanifest', './icon.svg', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
+const CACHE = 'expense-tracker-v9';
+const ASSETS = ['./', './index.html', './css/app.css', './js/core.js', './js/views.js', './js/features.js', './js/forms.js', './js/main.js',
+  './manifest.webmanifest', './icon.svg', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
   // cache: 'reload' bypasses the browser's HTTP cache so we always store the newest files

@@ -57,11 +57,17 @@ Then on your iPhone:
 ## Files
 | File | Purpose |
 |---|---|
-| `index.html` | The whole app (UI, logic, storage) |
+| `index.html` | Page structure: dialogs, tab bar, and the script/style links |
+| `css/app.css` | All styles, light/dark themes and animations |
+| `js/core.js` | On-device storage (IndexedDB), icons, India defaults, state, helpers, budget cycle, theme |
+| `js/views.js` | Screens: dashboard, stats, budget, profile, transactions, categories, lent & borrowed |
+| `js/features.js` | Savings goals, recurring & subscriptions, quick-add, calendar heatmap, report card |
+| `js/forms.js` | Add/edit sheet, SMS paste, categories, sheets, backup & CSV |
+| `js/main.js` | Install banner, first-time setup, swipe actions, event handling, start-up |
 | `sw.js` | Service worker that caches the app files for offline use |
 | `manifest.webmanifest` | App name/icon for installing |
 | `icon*.png`, `icon.svg` | App icons |
 
-When you change anything, bump `CACHE` in `sw.js` (e.g. `v5` → `v6`) before deploying. Installed apps then show a "New version available — Reload" banner.
+If you add a new file, also add it to `ASSETS` in `sw.js`. When you change anything, bump `CACHE` in `sw.js` (e.g. `v5` → `v6`) before deploying. Installed apps then show a "New version available — Reload" banner.
 
 `_headers` tells Cloudflare Pages not to cache `sw.js`, so updates reach phones quickly.
