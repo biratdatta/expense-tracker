@@ -596,7 +596,20 @@ function budgetFor(catId, m) {
   for (const b of Object.values(S.budgets)) if (b.categoryId === catId && b.month < m && (!best || b.month > best.month)) best = b;
   return best ? { limit: best.limit, inherited: best.limit > 0, from: best.month } : { limit: 0, inherited: false };
 }
-const totalBudget = m => sum(S.categories.map(c => budgetFor(c.id, m).limit));
+const totalBudget = m => sum(S.categories.map(c => budgetFor(c.id, m).limit)); // sum of category limits
+/* Overall monthly budget: one number for everything. Category limits are optional sub-limits inside it.
+   Stored like a category budget under a reserved id, so it carries over month to month the same way. */
+const TOTAL_KEY = '__overall__';
+const overallBudget = m => budgetFor(TOTAL_KEY, m).limit;
+const effectiveBudget = m => overallBudget(m) || totalBudget(m);
+function allocLine(m) {
+  const o = overallBudget(m), c = totalBudget(m);
+  if (!o && !c) return 'Tip: just set this one number. Category limits below are optional.';
+  if (!o) return `No overall budget — your budget is the total of category limits (${fmt(c)}).`;
+  if (!c) return `All ${fmt(o)} covers every category. Add limits below only where you want extra control.`;
+  return o >= c ? `${fmt(c)} set aside in category limits · <b style="color:var(--text)">${fmt(round2(o - c))}</b> left for everything else.`
+    : `<span class="red">Category limits add up to ${fmt(c)}, which is ${fmt(round2(c - o))} more than your overall budget.</span>`;
+}
 
 /* Period ranges for stats: week (Mon–Sun), month, year. offset 0 = current. */
 function rangeOf(period, offset = 0) {
@@ -668,7 +681,7 @@ const emptyCard = (ic, title, text, btn = '') => `<div class="card empty"><div c
 /* ================= Views ================= */
 function viewHome() {
   const m = thisMonth(), r = rangeOf('month', 0);
-  const spent = sum(expensesIn(r.start, r.end).map(e => e.amount)), target = totalBudget(m);
+  const spent = sum(expensesIn(r.start, r.end).map(e => e.amount)), target = effectiveBudget(m);
   const daysLeft = daysInMonth(m) - new Date().getDate() + 1;
   const over = target && spent > target;
   const name = S.settings.name;
@@ -767,7 +780,8 @@ function viewStats() {
 function viewBudget() {
   const m = S.month, r = { start: `${m}-01`, end: `${m}-${pad(daysInMonth(m))}` };
   const spend = totalsByCat(expensesIn(r.start, r.end));
-  const spent = sum(Object.values(spend)), total = totalBudget(m);
+  const spent = sum(Object.values(spend)), total = effectiveBudget(m);
+  const overall = overallBudget(m), catSum = totalBudget(m), pool = round2(overall - catSum);
   const pct = total ? spent / total * 100 : 0, st = status(spent, total);
   const ringLen = Math.min(100, pct);
   const head = `<header class="head"><div><h1>Budget</h1>
@@ -775,7 +789,8 @@ function viewBudget() {
     <button class="rbtn ${S.budgetEdit ? 'on' : ''}" data-action="budget-edit" aria-label="Edit budgets">${icon(S.budgetEdit ? 'tick' : 'sliders', 20, 2)}</button></header>`;
 
   const totalCard = `<section class="card btotal">
-    <div class="row"><div><div class="cap">Total monthly budget</div><div class="amt num" id="bTotal">${total ? esc(fmt(total)) : '—'}</div></div>
+    <div class="row"><div><div class="cap">${overall ? 'Monthly budget' : 'Total of category limits'}</div><div class="amt num" id="bTotal">${total ? esc(fmt(total)) : '—'}</div>
+      ${overall && catSum ? `<div class="muted" style="font-size:12.5px;margin-top:4px">${esc(fmt(catSum))} in category limits · ${pool >= 0 ? esc(fmt(pool)) + ' for everything else' : `<span class="red">limits exceed budget by ${esc(fmt(-pool))}</span>`}</div>` : ''}</div>
       <svg class="ring" viewBox="0 0 36 36"><circle cx="18" cy="18" r="15.9155" fill="none" stroke="var(--surface-3)" stroke-width="3.2"/>
         ${total ? `<circle cx="18" cy="18" r="15.9155" fill="none" stroke="${STATUS_COLOR[st]}" stroke-width="3.2" stroke-linecap="round" stroke-dasharray="${ringLen} ${100 - ringLen}" transform="rotate(-90 18 18)"/>` : ''}
         <text x="18" y="20.2" text-anchor="middle" font-size="7" font-weight="700" style="fill:var(--text)">${total ? Math.round(pct) + '%' : '—'}</text></svg></div>
@@ -783,15 +798,23 @@ function viewBudget() {
       <div><div class="cap">${total && spent > total ? 'Over' : 'Left'}</div><div class="v num ${total && spent > total ? 'red' : 'green'}">${total ? esc(fmt(Math.abs(total - spent))) : '—'}</div></div></div></section>`;
 
   if (S.budgetEdit) {
+    const ob = budgetFor(TOTAL_KEY, m);
+    const overallCard = `<section class="card" style="border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)">
+      <div class="top" style="display:flex;align-items:center;gap:14px"><span class="ic" style="background:var(--accent-soft);color:var(--accent)">${icon('wallet', 22)}</span>
+        <div style="flex:1;min-width:0"><div style="font-weight:700">Overall monthly budget</div><div class="muted" style="font-size:12.5px" id="bsub-${TOTAL_KEY}">${ob.inherited ? `Carried from ${esc(monthLabel(ob.from, 'short'))}` : 'One number for the whole month'}</div></div>
+        <input class="binput" id="overallInput" type="text" inputmode="decimal" placeholder="₹ —" data-cat="${TOTAL_KEY}" value="${ob.limit || ''}" aria-label="Overall monthly budget"></div>
+      <div class="muted" style="font-size:12.5px;margin-top:12px;line-height:1.45" id="bAlloc">${allocLine(m)}</div></section>`;
     const rows = S.categories.map(c => { const b = budgetFor(c.id, m);
       return `<div class="catcard"><div class="top">${tint(c)}<div class="g"><div class="t">${esc(c.name)}</div>
         <div class="s n" id="bsub-${c.id}">Spent ${esc(fmt(spend[c.id] || 0))}${b.inherited ? ` · from ${esc(monthLabel(b.from, 'short'))}` : ''}</div></div>
-        <input class="binput" type="text" inputmode="decimal" placeholder="₹ —" data-cat="${c.id}" value="${b.limit || ''}" aria-label="Monthly budget for ${esc(c.name)}"></div></div>`; }).join('');
-    return head + totalCard + `<div class="sec"><h2>Edit budgets</h2><button class="lnk cap" data-action="budget-edit">DONE</button></div>${rows}
-      <p class="note">Budgets carry over to the following months automatically. A change here applies from ${esc(monthLabel(m))} onward. Leave blank to remove.</p>`;
+        <input class="binput" type="text" inputmode="decimal" placeholder="Optional" data-cat="${c.id}" value="${b.limit || ''}" aria-label="Monthly limit for ${esc(c.name)}"></div></div>`; }).join('');
+    return head + `<div class="sec" style="margin-top:4px"><h2>Edit budget</h2><button class="lnk cap" data-action="budget-edit">DONE</button></div>${overallCard}
+      <div class="sec"><h2>Category limits <span class="muted" style="font-size:13px;font-weight:600">· optional</span></h2></div>
+      <p class="note" style="margin:-6px 4px 14px">Only add limits for categories you want to watch closely. Everything without a limit is covered by your overall budget.</p>${rows}
+      <p class="note">Budgets carry over to the following months automatically. A change here applies from ${esc(monthLabel(m))} onward. Leave a field blank to remove it.</p>`;
   }
 
-  if (!total) return head + totalCard + emptyCard('target', 'No budgets set yet', 'Set a monthly limit for each category to see how you’re tracking.', `<button class="btn" data-action="budget-edit">${icon('plus', 18, 2.4)} Set budgets</button>`);
+  if (!total) return head + totalCard + emptyCard('target', 'Set a monthly budget', 'Start with one number for the whole month. You can add limits for specific categories later — only if you want to.', `<button class="btn" data-action="budget-edit" data-focus="overall">${icon('plus', 18, 2.4)} Set monthly budget</button>`);
 
   const withB = S.categories.map(c => ({ c, s: spend[c.id] || 0, l: budgetFor(c.id, m).limit })).filter(x => x.l > 0).sort((a, b) => b.s / b.l - a.s / a.l);
   const cards = withB.map(({ c, s, l }) => { const stt = status(s, l), p = s / l * 100;
@@ -800,9 +823,27 @@ function viewBudget() {
       <div class="r ${stt === 'over' ? 'red' : stt === 'warn' ? 'amber' : ''}">${Math.round(p)}%</div></div>
       <div class="pbar"><i style="width:${Math.min(100, p)}%;background:${STATUS_COLOR[stt]}"></i></div>
       ${stt === 'over' ? `<div class="alert">${icon('alert', 15, 2.2)} Exceeded budget by ${esc(fmt(s - l))}</div>` : `<div class="okline"><span>${esc(fmt(l - s))} remaining</span>${icon('check', 16, 2.2)}</div>`}</button>`; }).join('');
-  const unb = S.categories.filter(c => !(budgetFor(c.id, m).limit > 0) && spend[c.id]);
-  const unbHtml = unb.length ? `<div class="sec"><h2>No budget set</h2></div><div class="slist">${unb.map(c => `<div class="srow">${tint(c, 42, 14)}<div class="t">${esc(c.name)}<small>Spent ${esc(fmt(spend[c.id]))}</small></div><button class="setbtn" data-action="budget-edit">Set</button></div>`).join('')}</div>` : '';
-  return head + totalCard + `<div class="sec"><h2>By Category</h2><button class="lnk cap" data-action="budget-edit">EDIT ALL</button></div>${cards}${unbHtml}`;
+  const unb = S.categories.filter(c => !(budgetFor(c.id, m).limit > 0) && spend[c.id]).sort((a, b) => spend[b.id] - spend[a.id]);
+  let rest = '';
+  if (overall) {
+    // Everything without its own limit shares what's left of the overall budget
+    const restSpent = sum(S.categories.filter(c => !(budgetFor(c.id, m).limit > 0)).map(c => spend[c.id] || 0));
+    const restCats = S.categories.filter(c => !(budgetFor(c.id, m).limit > 0)).length;
+    const lim = Math.max(0, pool), stt = lim ? status(restSpent, lim) : (restSpent > 0 ? 'over' : 'ok'), p = lim ? restSpent / lim * 100 : (restSpent ? 100 : 0);
+    const restCard = withB.length ? `<div class="catcard"><div class="top"><span class="ic" style="background:var(--surface-3);color:var(--muted)">${icon('layers', 22)}</span>
+        <div class="g"><div class="t">Everything else</div><div class="s n">${esc(fmt(restSpent))} of ${esc(fmt(lim))} · ${restCats} categories</div></div>
+        <div class="r ${stt === 'over' ? 'red' : stt === 'warn' ? 'amber' : ''}">${Math.round(p)}%</div></div>
+        <div class="pbar"><i style="width:${Math.min(100, p)}%;background:${STATUS_COLOR[stt]}"></i></div>
+        ${stt === 'over' ? `<div class="alert">${icon('alert', 15, 2.2)} ${lim ? 'Over by ' + esc(fmt(restSpent - lim)) : 'No budget left after category limits'}</div>` : `<div class="okline"><span>${esc(fmt(lim - restSpent))} remaining</span>${icon('check', 16, 2.2)}</div>`}</div>` : '';
+    const breakdown = unb.length ? `<div class="sec"><h2>${withB.length ? 'Inside “Everything else”' : 'Where it went'}</h2></div><div class="slist">${unb.map(c => `<button class="srow" data-action="goto-cat" data-id="${c.id}">${tint(c, 42, 14)}<div class="t">${esc(c.name)}<small>${Math.round(spend[c.id] / (spent || 1) * 100)}% of this month’s spending</small></div><b class="num">${esc(fmt(spend[c.id]))}</b></button>`).join('')}</div>` : '';
+    rest = restCard + breakdown;
+  } else {
+    rest = `<section class="card insight" style="margin-top:6px"><span class="ib">${icon('wallet', 22)}</span><div><b>Add an overall budget</b> to cover the categories without a limit, so all your spending is tracked against one number.
+      <div style="margin-top:10px"><button class="setbtn" data-action="budget-edit" data-focus="overall">Set overall budget</button></div></div></section>` +
+      (unb.length ? `<div class="sec"><h2>No limit set</h2></div><div class="slist">${unb.map(c => `<div class="srow">${tint(c, 42, 14)}<div class="t">${esc(c.name)}<small>Spent ${esc(fmt(spend[c.id]))}</small></div><button class="setbtn" data-action="budget-edit">Set</button></div>`).join('')}</div>` : '');
+  }
+  const catHead = withB.length ? `<div class="sec"><h2>Category limits</h2><button class="lnk cap" data-action="budget-edit">EDIT</button></div>` : `<div class="sec"><h2>Spending</h2><button class="lnk cap" data-action="budget-edit">ADD LIMITS</button></div>`;
+  return head + totalCard + catHead + cards + rest;
 }
 
 function viewProfile() {
@@ -1051,7 +1092,9 @@ async function saveExpense(ev) {
   toast(editing ? 'Expense updated' : `Added ${fmt(amount)} · ${catById(categoryId).name}`);
   const m = date.slice(0, 7), limit = budgetFor(categoryId, m).limit;
   const spent = sum(S.expenses.filter(x => x.categoryId === categoryId && x.date.slice(0, 7) === m).map(x => x.amount));
-  if (limit && spent > limit) setTimeout(() => toast(`⚠️ ${catById(categoryId).name} is ${fmt(spent - limit)} over budget`), 2500);
+  const monthTotal = sum(S.expenses.filter(x => x.date.slice(0, 7) === m).map(x => x.amount)), budget = effectiveBudget(m);
+  if (limit && spent > limit) setTimeout(() => toast(`⚠️ ${catById(categoryId).name} is ${fmt(spent - limit)} over its limit`), 2500);
+  else if (budget && monthTotal > budget && monthTotal - amount <= budget) setTimeout(() => toast(`⚠️ Monthly budget exceeded by ${fmt(monthTotal - budget)}`), 2500);
 }
 async function deleteExpense() {
   const e = S.editingExpense; if (!e || !confirm('Delete this expense?')) return;
@@ -1155,10 +1198,14 @@ async function saveBudget(input) {
   const b = { key: `${m}|${catId}`, month: m, categoryId: catId, limit };
   await dbPut('budgets', b); S.budgets[b.key] = b;
   input.value = limit || '';
-  const t = totalBudget(m); $('bTotal').textContent = t ? fmt(t) : '—';
+  if ($('bAlloc')) $('bAlloc').innerHTML = allocLine(m);
+  if (catId === TOTAL_KEY) {
+    $('bsub-' + catId).textContent = 'One number for the whole month';
+    return toast(limit ? `Monthly budget: ${fmt(limit)}` : 'Overall budget removed');
+  }
   const sp = sum(S.expenses.filter(e => e.categoryId === catId && e.date.slice(0, 7) === m).map(e => e.amount));
   $('bsub-' + catId).textContent = `Spent ${fmt(sp)}`;
-  toast(limit ? `${catById(catId).name}: ${fmt(limit)}/month` : `Budget removed for ${catById(catId).name}`);
+  toast(limit ? `${catById(catId).name}: ${fmt(limit)}/month` : `Limit removed for ${catById(catId).name}`);
 }
 function exportJSON() {
   const data = { app: 'expense-tracker', version: 3, exportedAt: new Date().toISOString(), settings: S.settings, categories: S.categories, expenses: S.expenses, budgets: Object.values(S.budgets), goals: S.goals };
@@ -1284,7 +1331,7 @@ document.addEventListener('click', e => {
     case 'bar': { const b = S._bars[+t.dataset.i]; document.querySelectorAll('.bcol.sel').forEach(x => x.classList.remove('sel')); t.classList.add('sel'); $('barInfo').innerHTML = `${esc(b.full)} · <b>${esc(fmt(b.v))}</b>`; break; }
     case 'month-prev': S.month = shiftMonth(S.month, -1); render(); break;
     case 'month-next': S.month = shiftMonth(S.month, 1); render(); break;
-    case 'budget-edit': S.budgetEdit = !S.budgetEdit; render(); break;
+    case 'budget-edit': S.budgetEdit = !S.budgetEdit; render(); if (S.budgetEdit && t.dataset.focus === 'overall') setTimeout(() => $('overallInput')?.focus(), 60); break;
     case 'to-cats': go('profile', 'categories'); break;
     case 'open-cat': openCat(id); break;
     case 'add-cat': openCat(); break;
