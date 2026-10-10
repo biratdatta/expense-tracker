@@ -136,6 +136,7 @@ async function finishOnboarding(skipped) {
   if (!S.settings.mode) await setSetting('mode', 'basic');   // skipped on first run → simple start
   await setSetting('onboarded', true);
   S.month = curCycle(); $('onbDlg').close(); go('home');
+  if (!skipped && !(+S.settings.tourSeen >= TOUR_VERSION)) setTimeout(() => startTour('full'), 700);   // first-time users get the tour right after setup
   toast(skipped ? 'You can set things up anytime from Profile' : `You’re all set${ONB.name ? ', ' + ONB.name.split(' ')[0] : ''}! Tap + to add your first expense`);
 }
 
@@ -185,7 +186,8 @@ async function setMode(m) {
   if (m === 'basic') { S.txAdv = { min: '', max: '', from: '', to: '' }; S.txPanel = false; if (S.txFilter.startsWith('kind:')) S.txFilter = ''; S.calDay = null; }
   if ($('sheetDlg').open) $('sheetDlg').close();
   closeSwipes(); S.anim = 'enter'; render(); window.scrollTo(0, 0);
-  if (changed) toast(m === 'advanced' ? 'Advanced mode on — all features unlocked' : 'Basic mode on — your data from advanced features is kept');
+  if (changed && m === 'advanced' && !(+S.settings.tourAdvSeen >= TOUR_VERSION)) toast('Advanced mode on — all features unlocked', 'Take the tour', () => startTour('advanced'));
+  else if (changed) toast(m === 'advanced' ? 'Advanced mode on — all features unlocked' : 'Basic mode on — your data from advanced features is kept');
 }
 
 /* ================= Income-linked budget ================= */
@@ -242,6 +244,11 @@ document.addEventListener('click', e => {
     case 'onb-mode': onbCollect(); ONB.mode = t.dataset.m; renderOnb(); break;
     case 'edit-mode': openSheet('mode'); break;
     case 'set-mode': setMode(t.dataset.m); break;
+    case 'start-tour': startTour(t.dataset.scope || 'full'); break;
+    case 'tour-next': tourNext(); break;
+    case 'tour-back': tourBack(); break;
+    case 'tour-skip': endTour(false); break;
+    case 'tour-later': setSetting('tourSeen', TOUR_VERSION).then(() => { render(); toast('Find it anytime in Profile → Take the tour'); }); break;
     case 'budget-from-income': budgetFromIncome(+t.dataset.pct); break;
     case 'auto-income-off': setAutoIncome(false); break;
     case 'leftover-move': S.pendingLeftover = t.dataset.k; S.moveAmt = +t.dataset.amt; openSheet('pickgoal'); break;

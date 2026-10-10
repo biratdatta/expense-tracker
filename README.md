@@ -3,6 +3,7 @@
 A private expense tracker that runs in your browser. All data is stored **on your device only** (IndexedDB). There is no server, no account, no analytics, and no network calls.
 
 ## Features
+- **Guided tour** of every feature (Basic or Advanced), offered after setup, from Profile → Take the tour, and as a short “What’s new” tour after updates
 - **Basic / Advanced mode** (Profile → App mode): Basic shows just adding expenses, budget and stats; Advanced unlocks everything below. Switching never deletes data. New users pick during setup (Basic by default); existing users stay on Advanced
 - Dark, mobile-first design: Home dashboard, Stats, Budget and Profile tabs, plus All Transactions with search and filters
 - Stats: weekly / monthly / yearly bar charts, insights vs. the previous period, payment-mode split, top categories
@@ -65,6 +66,7 @@ Then on your iPhone:
 | `js/core.js` | On-device storage (IndexedDB), icons, India defaults, state, helpers, budget cycle, theme |
 | `js/views.js` | Screens: dashboard, stats, budget, profile, transactions, categories, lent & borrowed |
 | `js/features.js` | Savings goals, recurring & subscriptions, quick-add, calendar heatmap, report card |
+| `js/tour.js` | Guided tour: steps, spotlight, “What’s new” logic |
 | `js/forms.js` | Add/edit sheet, SMS paste, categories, sheets, backup & CSV |
 | `js/main.js` | Install banner, first-time setup, swipe actions, event handling, start-up |
 | `sw.js` | Service worker that caches the app files for offline use |
@@ -82,3 +84,9 @@ cd tests
 npm install
 npm test
 ```
+
+## Keeping the guided tour up to date
+Every tour step points at a `data-tour="…"` marker in the UI (see `js/tour.js`). When you add or change a feature:
+1. Give it a `data-tour` marker and add a step in `TOUR_STEPS` with `since: <next version>`.
+2. Bump `TOUR_VERSION` — people who already took the tour get a short “What's new” tour of just the new steps.
+3. Run the tests: they walk the whole tour in Basic and Advanced mode and fail if a step's marker is missing, or if a marker exists without a step.

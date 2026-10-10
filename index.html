@@ -20,7 +20,7 @@
 <body>
 <div class="app"><main id="main"></main></div>
 
-<button class="fab" id="fab" data-action="add" aria-label="Add expense"></button>
+<button class="fab" id="fab" data-tour="fab" data-action="add" aria-label="Add expense"></button>
 <nav class="tabs" aria-label="Sections"><div class="tabs-in" id="tabs"></div></nav>
 
 <!-- Add / edit expense (full screen) -->
@@ -32,27 +32,27 @@
       <button type="button" class="rbtn" data-action="delete-expense" aria-label="Delete expense" id="txDelete" style="color:var(--red)"></button>
     </div>
     <div class="fbody">
-      <div class="seg kindseg" id="txKind" role="tablist" aria-label="Type">
+      <div class="seg kindseg" id="txKind" data-tour="add-kind" role="tablist" aria-label="Type">
         <button type="button" data-action="tx-kind" data-k="expense">Expense</button>
         <button type="button" data-action="tx-kind" data-k="income">Income</button>
         <button type="button" data-action="tx-kind" data-k="credit">Refund</button>
       </div>
-      <button type="button" class="smsbtn" id="smsBtn" data-action="paste-sms"><span id="smsIc"></span> Paste a bank / UPI SMS to fill this in</button>
+      <button type="button" class="smsbtn" id="smsBtn" data-tour="add-sms" data-action="paste-sms"><span id="smsIc"></span> Paste a bank / UPI SMS to fill this in</button>
       <div class="smsinfo" id="smsInfo" hidden></div>
-      <div class="amtcard">
+      <div class="amtcard" data-tour="add-amount">
         <div class="cap" id="txAmtLabel">Amount spent</div>
         <div class="amtrow"><span class="sym">₹</span><input id="txAmount" type="text" inputmode="decimal" placeholder="0" autocomplete="off" aria-label="Amount in rupees"></div>
       </div>
       <div class="chips quick" id="quickAmts"></div>
-      <div id="catBlock"><div class="flabel" id="catLabel">Select category</div>
+      <div id="catBlock" data-tour="add-category"><div class="flabel" id="catLabel">Select category</div>
       <div class="tiles-grid" id="txCats" role="radiogroup" aria-label="Category"></div></div>
       <div id="srcBlock" hidden><div class="flabel">Source</div>
       <div class="payseg src" id="txSrc" role="radiogroup" aria-label="Income source"></div></div>
       <div class="flabel" id="payLabel">Paid via</div>
-      <div class="payseg" id="txPay" role="radiogroup" aria-label="Payment mode"></div>
+      <div class="payseg" id="txPay" data-tour="add-pay" role="radiogroup" aria-label="Payment mode"></div>
       <label class="irow" id="noteRow"><input id="txNote" maxlength="80" placeholder="Add a description… (e.g. Chai, auto fare)"></label>
       <label class="irow" id="dateRow"><input type="date" id="txDate" aria-label="Date"></label>
-      <div id="optBlock">
+      <div id="optBlock" data-tour="add-options">
         <div class="flabel" style="margin-top:20px">Options</div>
         <div class="slist opts">
           <label class="srow" id="optRepeat"><span class="ic oi" id="oiRepeat"></span><div class="t">Repeat every month<small id="repeatSub">Added automatically each month</small></div><input type="checkbox" class="sw" id="txRepeat"></label>
@@ -141,6 +141,7 @@
 <script src="js/views.js" defer></script>
 <script src="js/features.js" defer></script>
 <script src="js/forms.js" defer></script>
+<script src="js/tour.js" defer></script>
 <script src="js/main.js" defer></script>
 </body>
 </html>

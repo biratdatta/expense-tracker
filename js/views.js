@@ -53,7 +53,7 @@ function viewHome() {
   const over = target && spent > target;
   const name = S.settings.name;
 
-  const hero = `<section class="card hero">
+  const hero = `<section class="card hero" data-tour="home-hero">
     <div class="lbl">Spent ${cycleDay() === 1 ? 'in ' + esc(cycleName(m)) : 'this cycle · ' + esc(cycleLabel(m))}</div>
     <div class="amt num countup">${esc(fmt(spent))}</div>
     ${target ? `<div class="hbar"><i class="${over ? 'over' : ''}" style="width:${Math.min(100, spent / target * 100)}%"></i></div>
@@ -72,7 +72,7 @@ function viewHome() {
     const msg = `At this pace you’ll spend <b style="color:var(--text)">${esc(fmt(Math.round(f.projected)))}</b> by ${esc(endL)}` +
       (target ? (diff > 0 ? ` — <b class="red">${esc(fmt(Math.round(diff)))} over budget</b>.` : ` — <b class="green">${esc(fmt(Math.round(-diff)))} under budget</b>.`) : '.') +
       (f.upcoming ? ` Includes ${esc(fmt(f.upcoming))} of upcoming bills.` : '');
-    forecast = `<section class="card fc"><div class="row3"><div><div class="cap">Daily average</div><div class="v num">${esc(fmt(Math.round(f.avg)))}</div></div>
+    forecast = `<section class="card fc" data-tour="home-forecast"><div class="row3"><div><div class="cap">Daily average</div><div class="v num">${esc(fmt(Math.round(f.avg)))}</div></div>
       <div><div class="cap">Projected</div><div class="v num ${target && diff > 0 ? 'red' : ''}">${esc(fmt(Math.round(f.projected)))}</div></div></div><div class="msg">${msg}</div></section>`;
   }
 
@@ -81,7 +81,7 @@ function viewHome() {
   let flow = '';
   if (inc > 0) {
     const saved = round2(inc - spent), rate = Math.round(saved / inc * 100);
-    flow = `<section class="card"><div class="ch" style="margin-bottom:14px"><h3>Cash flow</h3><span class="badge ${saved >= 0 ? 'down' : 'up'}">${saved >= 0 ? rate + '% saved' : 'Overspent'}</span></div>
+    flow = `<section class="card" data-tour="home-cashflow"><div class="ch" style="margin-bottom:14px"><h3>Cash flow</h3><span class="badge ${saved >= 0 ? 'down' : 'up'}">${saved >= 0 ? rate + '% saved' : 'Overspent'}</span></div>
       <div class="flow"><div><div class="cap">Income</div><div class="v num green">${esc(fmtShort(inc))}</div></div><div><div class="cap">Spent</div><div class="v num">${esc(fmtShort(spent))}</div></div>
       <div><div class="cap">${saved >= 0 ? 'Saved' : 'Short'}</div><div class="v num ${saved >= 0 ? 'blue' : 'red'}">${esc(fmtShort(Math.abs(saved)))}</div></div></div>
       ${saved > 0 && S.goals.some(g => goalInfo(g).state !== 'done') ? `<button class="btn ghost" style="width:100%;margin-top:14px" data-action="save-to-goal" data-amt="${saved}">${icon('piggy', 18)} Move ${esc(fmt(saved))} to a goal</button>` : ''}</section>`;
@@ -92,13 +92,13 @@ function viewHome() {
   // Quick-add favourites
   const favs = favorites();
   const quick = `<div class="sec" style="margin-top:6px"><h2>Quick add</h2><button class="lnk" data-action="to-favs">Edit ${icon('chevR', 15, 2.4)}</button></div>
-    <div class="qa">${favs.map(fv => { const c = catById(fv.categoryId); return `<button class="qbtn" data-action="quick-add" data-id="${fv.id}"><span class="ic" style="background:${c.color}22;color:${c.color}">${icon(c.icon, 16, 2)}</span>${esc(fv.name)}<small>${esc(fmt(fv.amount))}</small></button>`; }).join('')}
+    <div class="qa" data-tour="home-quick">${favs.map(fv => { const c = catById(fv.categoryId); return `<button class="qbtn" data-action="quick-add" data-id="${fv.id}"><span class="ic" style="background:${c.color}22;color:${c.color}">${icon(c.icon, 16, 2)}</span>${esc(fv.name)}<small>${esc(fmt(fv.amount))}</small></button>`; }).join('')}
     <button class="qbtn" data-action="add-fav" style="padding-left:12px;color:var(--accent)">${icon('plus', 16, 2.4)} New</button></div>`;
 
   const pr = rangeOf(S.homePeriod, 0), list = expensesIn(pr.start, pr.end), tot = sum(Object.values(totalsByCat(list)));
   let byCat = Object.entries(totalsByCat(list)).map(([id, v]) => ({ c: catById(id), v })).sort((a, b) => b.v - a.v);
   if (byCat.length > 6) byCat = [...byCat.slice(0, 5), { c: { name: `Others (${byCat.length - 5})`, color: '#71717A' }, v: sum(byCat.slice(5).map(x => x.v)) }];
-  const pills = `<div class="pills" style="margin-top:18px">${['day', 'week', 'month', 'year'].map(p => `<button class="pill ${S.homePeriod === p ? 'on' : ''}" data-action="home-period" data-p="${p}">${p[0].toUpperCase() + p.slice(1)}</button>`).join('')}</div>`;
+  const pills = `<div class="pills" data-tour="home-period" style="margin-top:18px">${['day', 'week', 'month', 'year'].map(p => `<button class="pill ${S.homePeriod === p ? 'on' : ''}" data-action="home-period" data-p="${p}">${p[0].toUpperCase() + p.slice(1)}</button>`).join('')}</div>`;
   const breakdown = tot ? `<section class="card">
       <div class="ch"><h3>${{ day: 'Today’s', week: 'Weekly', month: cycleDay() === 1 ? 'Monthly' : 'This cycle’s', year: 'Yearly' }[S.homePeriod]} Spending</h3><button class="lnk" data-action="to-stats">Details ${icon('chevR', 15, 2.4)}</button></div>
       <div class="donut-box">${donut(byCat.map(x => ({ value: x.v, color: x.c.color })), tot)}</div>
@@ -134,12 +134,12 @@ function viewHome() {
   const nudge = `<section class="card insight" style="margin-top:22px"><span class="ib">${icon('sparkles', 22)}</span><div style="flex:1"><b>Want more?</b> Advanced mode adds recurring bills, income & savings, goals, bill splitting, SMS paste and more.
     <div style="display:flex;gap:10px;margin-top:12px"><button class="setbtn" data-action="set-mode" data-m="advanced">Try Advanced</button><button class="lnk" data-action="hide-nudge" style="color:var(--muted)">Not now</button></div></div></section>`;
   const recent = [...S.expenses].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt).slice(0, 5);
-  const recentHtml = recent.length ? `<div class="sec"><h2>Recent</h2><button class="lnk" data-action="to-tx">See all ${icon('chevR', 15, 2.4)}</button></div>${recent.map(txRow).join('')}` : '';
+  const recentHtml = recent.length ? `<div class="sec" data-tour="home-recent"><h2>Recent</h2><button class="lnk" data-action="to-tx">See all ${icon('chevR', 15, 2.4)}</button></div>${recent.map(txRow).join('')}` : '';
 
   return `<header class="head"><div><div class="eyebrow">${esc(new Date().toLocaleDateString(LOCALE, { weekday: 'long', day: 'numeric', month: 'long' }))}</div><h1>Dashboard</h1><div class="subt">${name ? `Namaste, ${esc(name.split(' ')[0])} · ` : ''}${esc(cycleLabel(m))}</div></div>
       <div style="display:flex;gap:10px"><button class="rbtn" data-action="toggle-theme" aria-label="Switch to ${effectiveTheme() === 'dark' ? 'light' : 'dark'} mode">${icon(effectiveTheme() === 'dark' ? 'sun' : 'moon', 20)}</button>
-      <button class="rbtn" data-action="to-tx" aria-label="Search transactions">${icon('search', 20)}</button></div></header>
-    ${hero}${adv ? leftoverCard() + forecast + flow + quick : ''}${pills}${breakdown}${adv ? upcoming + iouCard + goalTeaser : ''}${recentHtml}${adv || S.settings.hideAdvNudge ? '' : nudge}`;
+      <button class="rbtn" data-tour="search" data-action="to-tx" aria-label="Search transactions">${icon('search', 20)}</button></div></header>
+    ${hero}${tourOfferCard()}${adv ? leftoverCard() + forecast + flow + quick : ''}${pills}${breakdown}${adv ? upcoming + iouCard + goalTeaser : ''}${recentHtml}${adv || S.settings.hideAdvNudge ? '' : nudge}`;
 }
 
 /* ================= Lent & borrowed ================= */
@@ -217,13 +217,13 @@ function viewStats() {
   const days = daysElapsed(r);
   const avg = days ? total / days : 0;
 
-  const seg = `<div class="seg">${['week', 'month', 'year'].map(p => `<button class="${S.period === p ? 'on' : ''}" data-action="stats-period" data-p="${p}">${p}</button>`).join('')}</div>`;
+  const seg = `<div class="seg" data-tour="stats-period">${['week', 'month', 'year'].map(p => `<button class="${S.period === p ? 'on' : ''}" data-action="stats-period" data-p="${p}">${p}</button>`).join('')}</div>`;
   const pnav = `<div class="pnav"><button data-action="stats-prev" aria-label="Previous">${icon('chevL', 18, 2.2)}</button><span>${esc(r.label)}</span><button data-action="stats-next" aria-label="Next" ${S.statsOffset >= 0 ? 'disabled' : ''}>${icon('chevR', 18, 2.2)}</button></div>`;
   const badge = change === null || change === 0 ? '' : `<span class="badge ${change > 0 ? 'up' : 'down'}">${icon(change > 0 ? 'up' : 'down', 12, 2.6)} ${Math.abs(change)}%</span>`;
   const bars = r.buckets.map((b, i) => `<button class="bcol ${b.cur ? 'cur' : ''}" data-action="bar" data-i="${i}" title="${esc(b.full)}: ${esc(fmt(vals[i]))}">
       <div class="btrack"><i style="--i:${i};height:${vals[i] ? Math.max(4, vals[i] / max * 100) : 0}%"></i></div><span>${b.label}</span></button>`).join('');
   S._bars = r.buckets.map((b, i) => ({ full: b.full, v: vals[i] }));
-  const flow = `<section class="card">
+  const flow = `<section class="card" data-tour="stats-flow">
     <div class="ch"><h3>Spending Flow</h3>${badge}</div>
     <div class="binfo" id="barInfo">Total <b>${esc(fmt(total))}</b> · ${change === null ? 'no data for previous ' + r.noun : `${Math.abs(change)}% ${change >= 0 ? 'more' : 'less'} than previous ${r.noun}`}</div>
     <div class="bars n${n}">${bars}</div></section>`;
@@ -261,7 +261,7 @@ function viewStats() {
     <div class="card"><div class="cap">${inc >= total ? 'Saved' : 'Overspent'}</div><div class="v num ${inc >= total ? 'blue' : 'red'}">${esc(fmt(Math.abs(inc - total)))}<span class="muted" style="font-size:13px;font-weight:600"> ${inc >= total ? Math.round((inc - total) / inc * 100) + '%' : ''}</span></div></div></div>` : '';
   const isMonth = S.period === 'month' && isAdvanced();
   const cal = isMonth ? calendarHTML(r) : '';
-  const report = isMonth && (total || inc) ? `<button class="catcard" data-action="report" style="background:linear-gradient(140deg,#5B9BFF,#2563EB);border:0;color:#fff"><div class="top"><span class="ic" style="background:rgba(255,255,255,.18);color:#fff">${icon('receipt', 22)}</span>
+  const report = isMonth && (total || inc) ? `<button class="catcard" data-tour="stats-report" data-action="report" style="background:linear-gradient(140deg,#5B9BFF,#2563EB);border:0;color:#fff"><div class="top"><span class="ic" style="background:rgba(255,255,255,.18);color:#fff">${icon('receipt', 22)}</span>
       <div class="g"><div class="t">${esc(r.label)} report card</div><div class="s n" style="color:rgba(255,255,255,.85)">Your month in one shareable image</div></div>${icon('chevR', 18, 2)}</div></button>` : '';
   return `<header class="head"><h1>Statistics</h1><button class="rbtn" data-action="stats-today" aria-label="Back to current period">${icon('calendar', 20)}</button></header>
     ${seg}${pnav}${report}${flow}${insight}${tiles}${isAdvanced() ? tiles2 : ''}${cal}${pay}${topCats}`;
@@ -279,9 +279,9 @@ function viewBudget() {
   const ringLen = Math.min(100, pct);
   const head = `<header class="head"><div><h1>Budget</h1>
       <div class="mnav"><button data-action="month-prev" aria-label="Previous month">${icon('chevL', 16, 2.4)}</button><span>${esc(cycleLabel(m))}</span><button data-action="month-next" aria-label="Next month">${icon('chevR', 16, 2.4)}</button></div></div>
-    <button class="rbtn ${S.budgetEdit ? 'on' : ''}" data-action="budget-edit" aria-label="Edit budgets">${icon(S.budgetEdit ? 'tick' : 'sliders', 20, 2)}</button></header>`;
+    <button class="rbtn ${S.budgetEdit ? 'on' : ''}" data-tour="budget-edit" data-action="budget-edit" aria-label="Edit budgets">${icon(S.budgetEdit ? 'tick' : 'sliders', 20, 2)}</button></header>`;
 
-  const totalCard = `<section class="card btotal">
+  const totalCard = `<section class="card btotal" data-tour="budget-total">
     <div class="row"><div><div class="cap">${auto ? `Monthly budget · ${A.pct}% of income` : overall ? 'Monthly budget' : 'Total of category limits'}</div><div class="amt num countup" id="bTotal">${total ? esc(fmt(total)) : '—'}</div>
       ${overall && catSum ? `<div class="muted" style="font-size:12.5px;margin-top:4px">${esc(fmt(catSum))} in category limits · ${pool >= 0 ? esc(fmt(pool)) + ' for everything else' : `<span class="red">limits exceed budget by ${esc(fmt(-pool))}</span>`}</div>` : ''}</div>
       <svg class="ring" viewBox="0 0 36 36"><circle cx="18" cy="18" r="15.9155" fill="none" stroke="var(--surface-3)" stroke-width="3.2"/>
@@ -350,7 +350,7 @@ function viewProfile() {
   const initials = name ? esc(name.trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase()) : icon('user', 44, 1.6);
   const first = S.expenses.reduce((m, e) => (!m || e.date < m ? e.date : m), '');
   const pm = S.settings.defaultPayment || 'UPI';
-  const row = (ic, col, title, sub, action, extra = '', cls = '') => `<button class="srow ${cls}" data-action="${action}"><span class="ic" style="background:${col}22;color:${col}">${icon(ic, 20)}</span><div class="t">${title}${sub ? `<small>${sub}</small>` : ''}</div>${extra}<span class="chev">${icon('chevR', 18, 2)}</span></button>`;
+  const row = (ic, col, title, sub, action, extra = '', cls = '') => `<button class="srow ${cls}" data-tour="row-${action}" data-action="${action}"><span class="ic" style="background:${col}22;color:${col}">${icon(ic, 20)}</span><div class="t">${title}${sub ? `<small>${sub}</small>` : ''}</div>${extra}<span class="chev">${icon('chevR', 18, 2)}</span></button>`;
   return `<header class="head"><h1>Profile</h1></header>
     <div class="prof"><button class="avatar" data-action="edit-name" aria-label="Edit name">${initials}<span class="edit">${icon('pencil', 16, 2.2)}</span></button>
       <h2>${name ? esc(name) : 'Add your name'}</h2><div class="h">Private · stored only on this device</div></div>
@@ -368,6 +368,7 @@ function viewProfile() {
       ${row(effectiveTheme() === 'dark' ? 'moon' : 'sun', '#6366F1', 'Appearance', '', 'edit-theme', `<span class="v">${THEMES.find(x => x[0] === (S.settings.theme || 'system'))[2]}</span>`)}
       ${row('card', '#F59E0B', 'Default payment', '', 'edit-payment', `<span class="v">${esc(pm)}</span>`)}
       ${row('shield', '#22C55E', 'Privacy', 'No account, no tracking, no cloud', 'privacy')}
+      ${row('info', '#3B82F6', 'Take the tour', 'A guided walk through every feature', 'start-tour')}
       ${isAdvanced() ? row('sparkles', '#EC4899', 'Run setup again', 'Name, salary day and monthly budget', 'run-setup') : ''}
     </div>
     <div class="sec"><span class="cap" style="font-size:12px;letter-spacing:.14em">Backup & data</span></div>

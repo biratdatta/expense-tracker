@@ -43,7 +43,7 @@ function goalCardBig(g) {
 }
 function viewPlan() {
   const head = `<header class="head"><div><h1>My Plan</h1><div class="subt">Savings goals</div></div>
-    <button class="rbtn on" data-action="add-goal" aria-label="New goal">${icon('plus', 22, 2.4)}</button></header>`;
+    <button class="rbtn on" data-tour="plan-add" data-action="add-goal" aria-label="New goal">${icon('plus', 22, 2.4)}</button></header>`;
   const suggest = `<div class="sec"><h2>Ideas to start with</h2></div><div class="chips" style="flex-wrap:wrap;margin:0;padding:0">${GOAL_SUGGESTIONS.map(([n, ic, col], i) => `<button class="chip" data-action="suggest-goal" data-i="${i}" style="display:inline-flex;align-items:center;gap:7px"><span style="color:${col};display:flex">${icon(ic, 16, 2)}</span>${esc(n)}</button>`).join('')}</div>`;
   if (!S.goals.length) return head + emptyCard('piggy', 'Plan your savings', 'Create goals like an emergency fund or a Goa trip, add money as you save, and see if you’re on schedule.', `<button class="btn" data-action="add-goal">${icon('plus', 18, 2.4)} New goal</button>`) + suggest;
   const infos = S.goals.map(g => ({ g, gi: goalInfo(g) }));
@@ -276,7 +276,7 @@ function calendarHTML(r) {
     detail = `<div class="glabel" style="margin:18px 2px 10px"><span>${esc(dayLabel(S.calDay))}</span><span class="num">${byDay[S.calDay] > 0 ? esc(fmt(byDay[S.calDay])) : ''}</span></div>` +
       (items.length ? items.map(txRow).join('') : `<p class="note" style="margin:0 2px">Nothing logged this day.</p>`);
   }
-  return `<section class="card"><div class="ch"><h3>Calendar</h3><span class="muted" style="font-size:12.5px">${noSpend} no-spend day${noSpend === 1 ? '' : 's'}</span></div>
+  return `<section class="card" data-tour="stats-calendar"><div class="ch"><h3>Calendar</h3><span class="muted" style="font-size:12.5px">${noSpend} no-spend day${noSpend === 1 ? '' : 's'}</span></div>
     <div class="cal">${cells}</div>
     <div class="legend-h">Less ${alpha.slice(1).map(a => `<i style="background:rgba(59,130,246,${a})"></i>`).join('')} More</div>${detail}</section>`;
 }
@@ -357,7 +357,7 @@ function render() {
   main.innerHTML = VIEWS[v]();
   if (mode) { void main.offsetWidth; main.classList.add(mode); clearTimeout(S._animT); S._animT = setTimeout(() => main.classList.remove('enter', 'charts'), 1600); }   // safety: never leave content mid-animation
   if (mode === 'enter') countUps();
-  $('tabs').innerHTML = visibleTabs().map(([k, ic, l]) => `<button class="tab ${S.view === k && !S.sub ? 'on' : ''} ${mode === 'enter' && S.view === k && !S.sub ? 'pop' : ''}" data-view="${k}">${icon(ic, 23, S.view === k && !S.sub ? 2.1 : 1.8)}${l}</button>`).join('');
+  $('tabs').innerHTML = visibleTabs().map(([k, ic, l]) => `<button data-tour="tab-${k}" class="tab ${S.view === k && !S.sub ? 'on' : ''} ${mode === 'enter' && S.view === k && !S.sub ? 'pop' : ''}" data-view="${k}">${icon(ic, 23, S.view === k && !S.sub ? 2.1 : 1.8)}${l}</button>`).join('');
   $('fab').hidden = ['profile', 'categories', 'plan', 'recurring', 'favs', 'ious'].includes(v);
 }
 

@@ -4,7 +4,8 @@ const {JSDOM}=require('jsdom'); const FDB=require('fake-indexeddb');
 const D=require('path').join(__dirname,'..')+'/';
 const fs=require('fs');
 const html=fs.readFileSync(D+'index.html','utf8');
-const appJs=['core','views','features','forms','main'].map(n=>fs.readFileSync(D+'js/'+n+'.js','utf8').replace("'use strict';",'')).join('\n').replace(/^(const|let) /gm,'var ');   // share top-level bindings across evals, like <script> tags do
+const SCRIPTS=[...html.matchAll(/<script src="(js\/[\w-]+\.js)"/g)].map(m=>m[1]);   // same files, same order as the app loads them
+const appJs=SCRIPTS.map(f=>fs.readFileSync(D+f,'utf8').replace("'use strict';",'')).join('\n').replace(/^(const|let) /gm,'var ');   // share top-level bindings across evals, like <script> tags do
 let pass=0, fail=0; const fails=[];
 function eq(name, got, exp){ const ok = typeof exp==='number' && typeof got==='number' ? Math.abs(got-exp)<1e-9 : JSON.stringify(got)===JSON.stringify(exp);
   if(ok) pass++; else { fail++; fails.push(`✗ ${name}\n    expected: ${JSON.stringify(exp)}\n    got:      ${JSON.stringify(got)}`); } }
@@ -312,6 +313,52 @@ const txt=(d,s)=>d.querySelector(s)?.textContent.replace(/\s+/g,' ').trim();
    Et("S.budgetEdit=true; go('budget'); S.budgetEdit=true; render()"); const ov=dt.getElementById('overallInput'); ov.value='3500000'; ov.dispatchEvent(new wt.Event('input',{bubbles:true}));
    eq('budget field commas', ov.value, '35,00,000'); ov.dispatchEvent(new wt.Event('change',{bubbles:true})); await sleep(100);
    eq('budget saved as number', Et("overallBudget(curCycle())"), 3500000); }
+
+ // ---------- U. Guided tour stays in sync with the UI
+ { eq('tour.js is loaded before main.js', SCRIPTS.indexOf('js/tour.js')>-1 && SCRIPTS.indexOf('js/tour.js')<SCRIPTS.indexOf('js/main.js'), true);
+   const A=await app(); const {E:Eu,d:du,w:wu}=A; allErrs.push(A.errs);
+   // every static data-tour marker in the UI must have a tour step (so new features can't be forgotten)
+   const src=fs.readFileSync(D+'index.html','utf8')+SCRIPTS.map(f=>fs.readFileSync(D+f,'utf8')).join('\n');
+   const markers=[...new Set([...src.matchAll(/data-tour="([a-z0-9-]+)"/g)].map(m=>m[1]))];
+   const targets=Eu("TOUR_STEPS.map(s=>s.target).filter(Boolean)");
+   eq('every data-tour marker has a tour step', markers.filter(m=>!targets.includes(m)), []);
+   eq('every step has a title and text', Eu("TOUR_STEPS.filter(s=>!s.title||!s.text).map(s=>s.id)"), []);
+   eq('step ids unique', Eu("TOUR_STEPS.length===new Set(TOUR_STEPS.map(s=>s.id)).size"), true);
+   eq('no step newer than TOUR_VERSION', Eu("TOUR_STEPS.filter(s=>!(s.since>=1&&s.since<=TOUR_VERSION)).map(s=>s.id)"), []);
+   // rich data so every feature card exists
+   await X(Eu,[{amount:85000,kind:'income',source:'Salary',categoryId:null,date:'2026-10-01'},{amount:2450,cat:0,date:'2026-10-03'},{amount:240,cat:1,date:'2026-10-09'},{amount:1200,cat:4,date:'2026-10-06'}]);
+   await Eu(`(async()=>{ const r={id:'rr',name:'Netflix',amount:649,categoryId:S.categories[12].id,day:20,start:'2026-10',active:true,subscription:true,createdAt:1}; S.recurring.push(r); await dbPut('recurring',r);
+     const g={id:'gg',name:'Goa',icon:'plane',color:'#06B6D4',target:40000,start:'2026-09-01',contributions:[],createdAt:1}; S.goals.push(g); await dbPut('goals',g); S.settings.tourSeen=TOUR_VERSION; })()`);
+   for (const mode of ['advanced','basic']) {
+     Eu(`S.settings.mode='${mode}'; T.list=tourSteps('full'); T.openedSheet=false;`);
+     const missing=Eu(`T.list.map((s,i)=>s.kind?null:(tourPrepare(i)?null:s.id)).filter(Boolean)`);
+     Eu("if(T.openedSheet&&$('txDlg').open)$('txDlg').close(); T.openedSheet=false; go('home')");
+     eq(`${mode}: every tour step finds its target on screen`, missing, []);
+   }
+   eq('basic tour skips advanced steps', Eu("S.settings.mode='basic'; tourSteps('full').filter(s=>s.adv).length"), 0);
+   eq('advanced-only tour', Eu("S.settings.mode='advanced'; tourSteps('advanced').every(s=>s.kind||s.adv)"), true);
+   eq('nothing new when up to date', Eu("S.settings.tourSeen=TOUR_VERSION; tourSteps('new').length"), 0);
+   // walk the real tour with the buttons; data must not change and it must clean up after itself
+   Eu("S.settings.mode='advanced'"); const before=Eu("JSON.stringify([S.expenses.length,S.goals.length,S.recurring.length,Object.keys(S.budgets).length])");
+   Eu("startTour('full')"); const total=Eu("T.list.length"); let guard=0, sheetSeen=false, centred=0;
+   while(Eu("T.on") && guard++<80){ await sleep(30); if(du.getElementById('txDlg').open) sheetSeen=true; if(du.getElementById('tourSpot').classList.contains('center')) centred++; du.getElementById('tourNext').click(); await sleep(20); }
+   eq('tour walks all steps then closes', [guard, Eu("T.on")], [total, false]);
+   eq('tour opened the Add sheet for its steps', sheetSeen, true);
+   eq('only intro & outro are centred (all features found)', centred, 2);
+   eq('tour leaves no dialogs open', ['txDlg','sheetDlg','tourDlg'].filter(id=>du.getElementById(id).open), []);
+   eq('tour never changes data', Eu("JSON.stringify([S.expenses.length,S.goals.length,S.recurring.length,Object.keys(S.budgets).length])"), before);
+   eq('tour remembered', [Eu("S.settings.tourSeen"), Eu("S.view")], [Eu("TOUR_VERSION"),'home']);
+   // skip from the middle (inside the Add sheet) also cleans up
+   Eu("startTour('full')"); for(let k=0;k<11;k++){ du.getElementById('tourNext').click(); await sleep(15); } du.getElementById('tourSkip').click(); await sleep(60);
+   eq('skip mid-tour cleans up', [Eu("T.on"), du.getElementById('txDlg').open, du.getElementById('tourDlg').open], [false,false,false]);
+   // dashboard offer for people who haven't seen it; “Not now” hides it
+   Eu("S.settings.tourSeen=0; go('home')"); eq('offer card shown', !!du.querySelector('[data-tour-offer]'), true);
+   du.querySelector('[data-action=tour-later]').click(); await sleep(60); eq('“Not now” hides offer', !!du.querySelector('[data-tour-offer]'), false); }
+ // new user: finishing setup starts the tour automatically
+ { const A=await app(); const {E:Ev,d:dv,w:wv}=A; allErrs.push(A.errs);
+   Ev("S.settings.onboarded=false; S.settings.mode=undefined; delete S.settings.tourSeen; openOnboarding()"); dv.getElementById('onbForm').dispatchEvent(new wv.Event('submit',{cancelable:true}));
+   dv.getElementById('onbForm').dispatchEvent(new wv.Event('submit',{cancelable:true})); await sleep(900);
+   eq('tour auto-starts after setup', Ev("T.on"), true); Ev("endTour(false)"); await sleep(50); }
 
  console.log(`\n${pass} passed, ${fail} failed`); if(fails.length) console.log(fails.join('\n'));
  const flat=allErrs.flat(); if(flat.length) console.log('runtime errors:',flat);
