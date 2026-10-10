@@ -7,6 +7,15 @@ A private expense tracker that runs in your browser. All data is stored **on you
 - Stats: weekly / monthly / yearly bar charts, insights vs. the previous period, payment-mode split, top categories
 - Budget: overall ring, per-category progress cards with over-budget alerts
 - Plan: savings goals (e.g. Emergency Fund, Goa Trip) with target amount and date, add/withdraw money, schedule tracking ("You're 30% behind schedule — save ₹X/month") and progress rings
+- Income, refunds and cash flow: log salary and other income, see savings and savings rate, and move savings into a goal; refunds subtract from spending
+- Recurring entries: rent, EMI, subscriptions, maid salary, SIP or salary are added automatically on their day each month (catches up if the app wasn't opened); subscriptions show a yearly total; upcoming bills on the dashboard
+- Budget cycle from salary day (e.g. 25th → 25 Oct – 24 Nov) for the dashboard, budgets and stats
+- Month-end forecast: daily average and projected total vs budget, including upcoming bills
+- Quick-add buttons (Chai ₹20, Metro ₹40…) for one-tap logging with Undo
+- Paste a bank / UPI SMS to fill in amount, merchant, date, payment mode and category — parsed on the phone only
+- Calendar heatmap with tap-a-day details, and a shareable monthly report card image
+- Lent & borrowed tracker with due dates, overdue reminders on the dashboard, one-tap settle and a WhatsApp reminder link
+- Split a bill: only your share counts as your expense, and what others owe is tracked automatically
 - Light, dark, or match-system appearance (Profile → Appearance, or the sun/moon button on the dashboard)
 - Built for India: amounts in ₹ with lakh/crore grouping (₹1,25,000), short forms like ₹1.25L / ₹2.1Cr, Indian date format
 - Add, edit, and delete expenses (amount, category, date, note), with one-tap amount buttons (+₹50 … +₹2,000)
