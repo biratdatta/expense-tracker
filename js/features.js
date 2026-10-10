@@ -342,13 +342,20 @@ const VIEWS = { ious: viewIous, recurring: viewRecurring, favs: viewFavs, plan: 
 const TABS = [['home', 'home', 'Home'], ['stats', 'chart', 'Stats'], ['budget', 'wallet', 'Budget'], ['plan', 'flag', 'Plan'], ['profile', 'user', 'Profile']];
 
 /* Animation modes: 'enter' = page change (cards rise in, numbers count up, charts draw); 'charts' = data view change (charts redraw only). */
+function guardView() {
+  // Never strand the user on a screen the current mode hides (e.g. switched to Basic while on Plan)
+  if (!isAdvanced()) { if (S.sub && !BASIC_VIEWS.includes(S.sub)) S.sub = null; if (!BASIC_VIEWS.includes(S.view)) S.view = 'home'; }
+  if (!VIEWS[S.sub || S.view]) { S.sub = null; S.view = 'home'; }
+}
+const visibleTabs = () => TABS.filter(([k]) => isAdvanced() || BASIC_VIEWS.includes(k));
 function render() {
+  guardView();
   const v = S.sub || S.view, mode = S.anim, main = $('main'); S.anim = null;
   main.classList.remove('enter', 'charts');
   main.innerHTML = VIEWS[v]();
-  if (mode) { void main.offsetWidth; main.classList.add(mode); }
+  if (mode) { void main.offsetWidth; main.classList.add(mode); clearTimeout(S._animT); S._animT = setTimeout(() => main.classList.remove('enter', 'charts'), 1600); }   // safety: never leave content mid-animation
   if (mode === 'enter') countUps();
-  $('tabs').innerHTML = TABS.map(([k, ic, l]) => `<button class="tab ${S.view === k && !S.sub ? 'on' : ''} ${mode === 'enter' && S.view === k && !S.sub ? 'pop' : ''}" data-view="${k}">${icon(ic, 23, S.view === k && !S.sub ? 2.1 : 1.8)}${l}</button>`).join('');
+  $('tabs').innerHTML = visibleTabs().map(([k, ic, l]) => `<button class="tab ${S.view === k && !S.sub ? 'on' : ''} ${mode === 'enter' && S.view === k && !S.sub ? 'pop' : ''}" data-view="${k}">${icon(ic, 23, S.view === k && !S.sub ? 2.1 : 1.8)}${l}</button>`).join('');
   $('fab').hidden = ['profile', 'categories', 'plan', 'recurring', 'favs', 'ious'].includes(v);
 }
 

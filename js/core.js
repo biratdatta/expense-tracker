@@ -204,6 +204,13 @@ function cycleLabel(key, short) {
 }
 const cycleName = key => cycleDay() === 1 ? monthLabel(key, 'name') : 'this cycle';
 const curCycle = () => cycleKey(todayStr());
+
+/* App mode: 'basic' (add expenses, budget, stats) or 'advanced' (everything). Hiding never deletes data.
+   Existing users with data default to advanced so nothing disappears; brand-new users default to basic. */
+const hasUserData = () => !!(S.expenses.length || S.goals.length || S.recurring.length || S.ious.length);
+const appMode = () => S.settings.mode || (S.settings.onboarded || hasUserData() ? 'advanced' : 'basic');
+const isAdvanced = () => appMode() === 'advanced';
+const BASIC_VIEWS = ['home', 'stats', 'budget', 'profile', 'transactions', 'categories'];
 const status = (spent, limit) => !limit ? 'none' : spent > limit ? 'over' : spent / limit >= .75 ? 'warn' : 'ok';
 const STATUS_COLOR = { over: 'var(--red)', warn: 'var(--amber)', ok: 'var(--accent)', none: 'var(--faint)' };
 

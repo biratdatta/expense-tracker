@@ -122,13 +122,16 @@ function viewHome() {
       <button class="catcard" data-view="plan"><div class="top">${tint(pick.g)}<div class="g"><div class="t">${esc(pick.g.name)}</div><div class="s n">${esc(fmt(pick.gi.saved))} of ${esc(fmt(pick.g.target))}</div></div>${goalRing(pick.g, pick.gi.pct, 52)}</div>
       ${pick.gi.state === 'behind' ? `<div class="alert" style="background:rgba(249,115,22,.12);color:#F97316">${icon('info', 15, 2.2)} ${esc(pick.gi.msg)}</div>` : ''}</button>`;
   }
+  const adv = isAdvanced();
+  const nudge = `<section class="card insight" style="margin-top:22px"><span class="ib">${icon('sparkles', 22)}</span><div style="flex:1"><b>Want more?</b> Advanced mode adds recurring bills, income & savings, goals, bill splitting, SMS paste and more.
+    <div style="display:flex;gap:10px;margin-top:12px"><button class="setbtn" data-action="set-mode" data-m="advanced">Try Advanced</button><button class="lnk" data-action="hide-nudge" style="color:var(--muted)">Not now</button></div></div></section>`;
   const recent = [...S.expenses].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt).slice(0, 5);
   const recentHtml = recent.length ? `<div class="sec"><h2>Recent</h2><button class="lnk" data-action="to-tx">See all ${icon('chevR', 15, 2.4)}</button></div>${recent.map(txRow).join('')}` : '';
 
   return `<header class="head"><div><div class="eyebrow">${esc(new Date().toLocaleDateString(LOCALE, { weekday: 'long', day: 'numeric', month: 'long' }))}</div><h1>Dashboard</h1><div class="subt">${name ? `Namaste, ${esc(name.split(' ')[0])} · ` : ''}${esc(cycleLabel(m))}</div></div>
       <div style="display:flex;gap:10px"><button class="rbtn" data-action="toggle-theme" aria-label="Switch to ${effectiveTheme() === 'dark' ? 'light' : 'dark'} mode">${icon(effectiveTheme() === 'dark' ? 'sun' : 'moon', 20)}</button>
       <button class="rbtn" data-action="to-tx" aria-label="Search transactions">${icon('search', 20)}</button></div></header>
-    ${hero}${forecast}${flow}${quick}${pills}${breakdown}${upcoming}${iouCard}${goalTeaser}${recentHtml}`;
+    ${hero}${adv ? forecast + flow + quick : ''}${pills}${breakdown}${adv ? upcoming + iouCard + goalTeaser : ''}${recentHtml}${adv || S.settings.hideAdvNudge ? '' : nudge}`;
 }
 
 /* ================= Lent & borrowed ================= */
@@ -248,12 +251,12 @@ function viewStats() {
   const inc = sum(incomeIn(r.start, r.end).map(e => e.amount));
   const tiles2 = inc ? `<div class="tiles"><div class="card"><div class="cap">Income</div><div class="v num green">${esc(fmt(inc))}</div></div>
     <div class="card"><div class="cap">${inc >= total ? 'Saved' : 'Overspent'}</div><div class="v num ${inc >= total ? 'blue' : 'red'}">${esc(fmt(Math.abs(inc - total)))}<span class="muted" style="font-size:13px;font-weight:600"> ${inc >= total ? Math.round((inc - total) / inc * 100) + '%' : ''}</span></div></div></div>` : '';
-  const isMonth = S.period === 'month';
+  const isMonth = S.period === 'month' && isAdvanced();
   const cal = isMonth ? calendarHTML(r) : '';
   const report = isMonth && (total || inc) ? `<button class="catcard" data-action="report" style="background:linear-gradient(140deg,#5B9BFF,#2563EB);border:0;color:#fff"><div class="top"><span class="ic" style="background:rgba(255,255,255,.18);color:#fff">${icon('receipt', 22)}</span>
       <div class="g"><div class="t">${esc(r.label)} report card</div><div class="s n" style="color:rgba(255,255,255,.85)">Your month in one shareable image</div></div>${icon('chevR', 18, 2)}</div></button>` : '';
   return `<header class="head"><h1>Statistics</h1><button class="rbtn" data-action="stats-today" aria-label="Back to current period">${icon('calendar', 20)}</button></header>
-    ${seg}${pnav}${report}${flow}${insight}${tiles}${tiles2}${cal}${pay}${topCats}`;
+    ${seg}${pnav}${report}${flow}${insight}${tiles}${isAdvanced() ? tiles2 : ''}${cal}${pay}${topCats}`;
 }
 
 function viewBudget() {
@@ -340,14 +343,15 @@ function viewProfile() {
     <div class="slist">
       ${installMode() === 'installed' ? '' : row('download', '#0E7C66', 'Install app', 'Add to your home screen · works offline', 'install', installMode() === 'prompt' ? '<span class="setbtn">Install</span>' : '')}
       ${row('layers', '#3B82F6', 'Categories', `${S.categories.length} categories`, 'to-cats')}
-      ${row('repeat', '#8B5CF6', 'Recurring & subscriptions', S.recurring.length ? `${fmt(sum(S.recurring.filter(r => r.active && r.kind !== 'income').map(r => r.amount)))}/month fixed · ${fmt(sum(S.recurring.filter(r => r.active && r.subscription).map(r => r.amount * 12)))}/yr subscriptions` : 'Rent, EMI, Netflix, salary…', 'to-recurring')}
+      ${row(isAdvanced() ? 'grid' : 'layers', '#0E7C66', 'App mode', isAdvanced() ? 'All features on' : 'Simple: expenses, budget & stats', 'edit-mode', `<span class="v">${isAdvanced() ? 'Advanced' : 'Basic'}</span>`)}
+      ${isAdvanced() ? `${row('repeat', '#8B5CF6', 'Recurring & subscriptions', S.recurring.length ? `${fmt(sum(S.recurring.filter(r => r.active && r.kind !== 'income').map(r => r.amount)))}/month fixed · ${fmt(sum(S.recurring.filter(r => r.active && r.subscription).map(r => r.amount * 12)))}/yr subscriptions` : 'Rent, EMI, Netflix, salary…', 'to-recurring')}
       ${row('handshake', '#14B8A6', 'Lent & borrowed', S.ious.some(i => !i.settled) ? `${S.ious.filter(i => !i.settled).length} open` : 'Who owes whom', 'to-ious')}
       ${row('star', '#EAB308', 'Quick-add buttons', `${favorites().length} on your dashboard`, 'to-favs')}
-      ${row('calendar', '#0EA5E9', 'Budget cycle', '', 'edit-cycle', `<span class="v">${cycleDay() === 1 ? 'Calendar month' : 'From the ' + ordinal(cycleDay())}</span>`)}
+      ${row('calendar', '#0EA5E9', 'Budget cycle', '', 'edit-cycle', `<span class="v">${cycleDay() === 1 ? 'Calendar month' : 'From the ' + ordinal(cycleDay())}</span>`)}` : ''}
       ${row(effectiveTheme() === 'dark' ? 'moon' : 'sun', '#6366F1', 'Appearance', '', 'edit-theme', `<span class="v">${THEMES.find(x => x[0] === (S.settings.theme || 'system'))[2]}</span>`)}
       ${row('card', '#F59E0B', 'Default payment', '', 'edit-payment', `<span class="v">${esc(pm)}</span>`)}
       ${row('shield', '#22C55E', 'Privacy', 'No account, no tracking, no cloud', 'privacy')}
-      ${row('sparkles', '#EC4899', 'Run setup again', 'Name, salary day and monthly budget', 'run-setup')}
+      ${isAdvanced() ? row('sparkles', '#EC4899', 'Run setup again', 'Name, salary day and monthly budget', 'run-setup') : ''}
     </div>
     <div class="sec"><span class="cap" style="font-size:12px;letter-spacing:.14em">Backup & data</span></div>
     <div class="slist">
@@ -398,8 +402,8 @@ function datePreset(k) {
 }
 function viewTransactions() {
   const chip = (key, label) => `<button class="chip ${S.txFilter === key ? 'on' : ''}" data-action="tx-filter" data-k="${esc(key)}">${esc(label)}</button>`;
-  const A = S.txAdv, n = advCount();
-  const panel = S.txPanel ? `<section class="card fpanel">
+  const A = S.txAdv, n = advCount(), adv = isAdvanced();
+  const panel = S.txPanel && adv ? `<section class="card fpanel">
       <div class="flabel">Amount</div>
       <div class="two"><label class="irow"><span style="font-weight:700;color:var(--accent)">₹</span><input id="fMin" class="advin" inputmode="decimal" placeholder="Min" value="${esc(A.min)}"></label>
         <label class="irow"><span style="font-weight:700;color:var(--accent)">₹</span><input id="fMax" class="advin" inputmode="decimal" placeholder="Max" value="${esc(A.max)}"></label></div>
@@ -408,12 +412,12 @@ function viewTransactions() {
       <div class="two"><label class="irow"><span class="muted" style="font-size:12px">From</span><input type="date" id="fFrom" class="advin" value="${esc(A.from)}"></label>
         <label class="irow"><span class="muted" style="font-size:12px">To</span><input type="date" id="fTo" class="advin" value="${esc(A.to)}"></label></div>
       <div class="sactions" style="margin-top:4px"><button class="btn ghost" data-action="tx-adv-clear">Clear</button><button class="btn" data-action="tx-panel">Done</button></div></section>` : '';
-  const bar = !S.txPanel && n ? `<div class="fbar">${icon('sliders', 16, 2)} ${advSummary().map(b => `<span class="chip on">${esc(b)}</span>`).join('')}<button class="lnk" data-action="tx-adv-clear">Clear</button></div>` : '';
+  const bar = adv && !S.txPanel && n ? `<div class="fbar">${icon('sliders', 16, 2)} ${advSummary().map(b => `<span class="chip on">${esc(b)}</span>`).join('')}<button class="lnk" data-action="tx-adv-clear">Clear</button></div>` : '';
   return `<header class="head center"><button class="rbtn" data-action="back" aria-label="Back">${icon('back', 20)}</button><h1>All Transactions</h1>
-      <button class="rbtn ${S.txPanel || n ? 'on' : ''}" data-action="tx-panel" aria-label="Filter by amount and date">${icon('sliders', 20)}${n ? `<span class="cnt">${n}</span>` : ''}</button></header>
+      ${adv ? `<button class="rbtn ${S.txPanel || n ? 'on' : ''}" data-action="tx-panel" aria-label="Filter by amount and date">${icon('sliders', 20)}${n ? `<span class="cnt">${n}</span>` : ''}</button>` : '<span></span>'}</header>
     <label class="search">${icon('search', 20)}<input id="txSearch" type="search" placeholder="Search transactions…" value="${esc(S.txSearch)}" autocomplete="off"></label>
     ${panel}
-    <div class="chips">${chip('', 'All')}${chip('kind:expense', 'Expenses')}${chip('kind:income', 'Income')}${chip('kind:credit', 'Refunds')}${chip('kind:recurring', 'Recurring')}${chip('kind:split', 'Split')}${PAYMENT_MODES.map(([m]) => chip('pay:' + m, m)).join('')}${S.categories.map(c => chip('cat:' + c.id, c.name)).join('')}</div>
+    <div class="chips">${chip('', 'All')}${adv ? chip('kind:expense', 'Expenses') + chip('kind:income', 'Income') + chip('kind:credit', 'Refunds') + chip('kind:recurring', 'Recurring') + chip('kind:split', 'Split') : ''}${PAYMENT_MODES.map(([m]) => chip('pay:' + m, m)).join('')}${S.categories.map(c => chip('cat:' + c.id, c.name)).join('')}</div>
     ${bar}
     <div class="divider"></div>
     <div id="txList">${txListHTML()}</div>`;

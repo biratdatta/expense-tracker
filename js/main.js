@@ -64,22 +64,27 @@ window.addEventListener('beforeinstallprompt', e => {
 window.addEventListener('appinstalled', () => { deferredPrompt = null; hideBanner(); toast('App installed 🎉 Find it on your home screen'); render(); });
 
 /* ================= First-time setup ================= */
-const ONB = { step: 0, name: '', day: 1, salary: '', budget: '' };
+const ONB = { step: 0, name: '', day: 1, salary: '', budget: '', mode: 'basic' };
+const onbSteps = () => ONB.mode === 'advanced' ? ['welcome', 'payday', 'budget'] : ['welcome', 'budget'];
 function openOnboarding() {
-  Object.assign(ONB, { dir: 1, step: 0, name: S.settings.name || '', day: cycleDay(), salary: '', budget: '' });
+  Object.assign(ONB, { dir: 1, step: 0, name: S.settings.name || '', day: cycleDay(), salary: '', budget: '', mode: appMode() });
   renderOnb(); if (!$('onbDlg').open) $('onbDlg').showModal();
 }
 function renderOnb() {
-  const st = ONB.step;
-  $('onbDots').innerHTML = [0, 1, 2].map(i => `<i class="${i <= st ? 'on' : ''}"></i>`).join('');
-  $('onbBack').classList.toggle('show', st > 0);
-  $('onbNext').textContent = st === 2 ? 'Start tracking' : 'Continue';
+  const steps = onbSteps(); ONB.step = Math.min(ONB.step, steps.length - 1);
+  const idx = ONB.step, st = { welcome: 0, payday: 1, budget: 2 }[steps[idx]];
+  $('onbDots').innerHTML = steps.map((_, i) => `<i class="${i <= idx ? 'on' : ''}"></i>`).join('');
+  $('onbBack').classList.toggle('show', idx > 0);
+  $('onbNext').textContent = idx === steps.length - 1 ? 'Start tracking' : 'Continue';
   let h = '';
   if (st === 0) h = `<div class="hero-ic">${icon('wallet', 40, 1.8)}</div>
-    <h2>Namaste! Let’s set you up</h2><p class="lead">Three quick questions and you’re ready. Takes about 30 seconds.</p>
+    <h2>Namaste! Let’s set you up</h2><p class="lead">${ONB.mode === 'advanced' ? 'Three' : 'Two'} quick questions and you’re ready. Takes about 30 seconds.</p>
     <ul class="ticks"><li>${icon('check', 20, 2.2)} Everything stays on this phone — no account, no cloud</li><li>${icon('check', 20, 2.2)} Built for ₹, UPI and Indian spending</li><li>${icon('check', 20, 2.2)} Works offline, installs like an app</li></ul>
     <div class="flabel">What should we call you?</div>
-    <label class="irow"><input id="onbName" maxlength="40" placeholder="Your name (optional)" value="${esc(ONB.name)}" autocomplete="given-name"></label>`;
+    <label class="irow"><input id="onbName" maxlength="40" placeholder="Your name (optional)" value="${esc(ONB.name)}" autocomplete="given-name"></label>
+    <div class="flabel" style="margin-top:18px">How much do you want?</div>
+    ${[['basic', 'layers', 'Keep it simple', 'Add expenses, a budget and stats'], ['advanced', 'grid', 'Show me everything', 'Plus recurring bills, income, goals, splits, SMS paste…']].map(([k, ic, t, d]) => `<button type="button" class="opt ${ONB.mode === k ? 'on' : ''}" data-action="onb-mode" data-m="${k}"><span class="ic" style="width:40px;height:40px;border-radius:13px;background:var(--accent-soft);color:var(--accent)">${icon(ic, 20)}</span><span style="flex:1">${t}<small style="display:block;font-weight:500;color:var(--muted);font-size:12.5px">${d}</small></span>${ONB.mode === k ? `<span class="ck">${icon('tick', 20, 2.6)}</span>` : ''}</button>`).join('')}
+    <p class="note" style="margin:4px 2px 0">You can switch anytime in Profile → App mode.</p>`;
   if (st === 1) { const days = [1, 5, 7, 10, 15, 25, 28];
     h = `<div class="hero-ic">${icon('calendar', 40, 1.8)}</div>
     <h2>When do you get paid?</h2><p class="lead">Your budget month will start on this day, so it matches how your money actually comes in.</p>
@@ -108,18 +113,19 @@ function onbCollect() {
 async function onbNext(ev) {
   ev?.preventDefault(); onbCollect();
   if (ONB.salary && !(parseAmount(ONB.salary) > 0)) return toast('Enter a valid salary or leave it empty');
-  if (ONB.step < 2) { ONB.step++; ONB.dir = 1; return renderOnb(); }
+  if (ONB.step < onbSteps().length - 1) { ONB.step++; ONB.dir = 1; return renderOnb(); }
   if (ONB.budget && !(parseAmount(ONB.budget) > 0)) return toast('Enter a valid budget or leave it empty');
   await finishOnboarding();
 }
 async function finishOnboarding(skipped) {
   if (!skipped) {
     if (ONB.name) await setSetting('name', ONB.name);
-    await setSetting('cycleDay', ONB.day);
+    await setSetting('mode', ONB.mode);
+    if (ONB.mode === 'advanced') await setSetting('cycleDay', ONB.day);   // Basic keeps whatever cycle is already set
     const m = curCycle();
     const budget = parseAmount(ONB.budget);
     if (budget > 0) { const b = { key: `${m}|${TOTAL_KEY}`, month: m, categoryId: TOTAL_KEY, limit: budget }; await dbPut('budgets', b); S.budgets[b.key] = b; }
-    const sal = parseAmount(ONB.salary);
+    const sal = ONB.mode === 'advanced' ? parseAmount(ONB.salary) : 0;
     if (sal > 0 && !S.recurring.some(r => r.kind === 'income' && r.source === 'Salary')) {
       const cur = thisMonth(), due = dueDate(cur, ONB.day) <= todayStr();
       const rule = { id: uid(), name: 'Salary', amount: sal, kind: 'income', categoryId: null, source: 'Salary', payment: 'Net Banking', day: ONB.day, start: cur, active: true, subscription: false, createdAt: Date.now() };
@@ -127,6 +133,7 @@ async function finishOnboarding(skipped) {
       await dbPut('recurring', rule); S.recurring.push(rule);
     }
   }
+  if (!S.settings.mode) await setSetting('mode', 'basic');   // skipped on first run → simple start
   await setSetting('onboarded', true);
   S.month = curCycle(); $('onbDlg').close(); go('home');
   toast(skipped ? 'You can set things up anytime from Profile' : `You’re all set${ONB.name ? ', ' + ONB.name.split(' ')[0] : ''}! Tap + to add your first expense`);
@@ -169,11 +176,23 @@ async function swipeDelete(id) {
   toast(`Deleted ${e.note || (isIncome(e) ? e.source : catById(e.categoryId).name)}`, 'Undo', async () => { await dbPut('expenses', e); S.expenses.push(e); render(); toast('Restored'); });
 }
 
+/* ================= Basic / Advanced mode ================= */
+async function setMode(m) {
+  if (m !== 'basic' && m !== 'advanced') return;
+  const changed = m !== appMode();
+  await setSetting('mode', m);
+  // Reset anything that only exists in Advanced so nothing is left half-applied
+  if (m === 'basic') { S.txAdv = { min: '', max: '', from: '', to: '' }; S.txPanel = false; if (S.txFilter.startsWith('kind:')) S.txFilter = ''; S.calDay = null; }
+  if ($('sheetDlg').open) $('sheetDlg').close();
+  closeSwipes(); S.anim = 'enter'; render(); window.scrollTo(0, 0);
+  if (changed) toast(m === 'advanced' ? 'Advanced mode on — all features unlocked' : 'Basic mode on — your data from advanced features is kept');
+}
+
 /* ================= Events ================= */
 function go(view, sub = null) { S.view = view; S.sub = sub; S.budgetEdit = false; S.anim = 'enter'; render(); window.scrollTo(0, 0); }
 const reduceMotion = () => window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
 function countUps() {
-  if (reduceMotion()) return;
+  if (reduceMotion() || typeof requestAnimationFrame !== 'function') return;
   document.querySelectorAll('#main .countup').forEach(el => {
     const target = parseAmount(el.textContent); if (!(target > 0)) return;
     const t0 = performance.now(), dur = 750;
@@ -198,6 +217,10 @@ document.addEventListener('click', e => {
     case 'onb-day': onbCollect(); ONB.day = +t.dataset.d; renderOnb(); break;
     case 'onb-budget': $('onbBudget').value = t.dataset.v; ONB.budget = t.dataset.v; break;
     case 'run-setup': openOnboarding(); break;
+    case 'onb-mode': onbCollect(); ONB.mode = t.dataset.m; renderOnb(); break;
+    case 'edit-mode': openSheet('mode'); break;
+    case 'set-mode': setMode(t.dataset.m); break;
+    case 'hide-nudge': setSetting('hideAdvNudge', true).then(() => { render(); toast('Find more in Profile → App mode'); }); break;
     case 'add-income': openExpense(null, { kind: 'income' }); break;
     case 'quick-add': quickAdd(id); break;
     case 'to-favs': go(S.view, 'favs'); break;
@@ -333,10 +356,13 @@ async function load() {
   // Home-screen shortcuts: ?view=stats|plan|budget, ?action=add
   const qs = new URLSearchParams(location.search);
   if (VIEWS[qs.get('view')] && TABS.some(t => t[0] === qs.get('view'))) S.view = qs.get('view');
+  // Decide the mode before the first screen is drawn: existing users keep every feature, new users start simple
+  if (!S.settings.mode && (S.settings.onboarded || hasUserData())) await setSetting('mode', 'advanced');
+  if (!S.settings.onboarded && hasUserData()) await setSetting('onboarded', true);
   const posted = await postRecurring();
   S.anim = 'enter'; render();
   if (posted.length) toast(`Added ${posted.length} recurring ${posted.length === 1 ? 'entry' : 'entries'} · ${posted.slice(0, 2).map(e => e.note).join(', ')}${posted.length > 2 ? '…' : ''}`);
-  if (!S.settings.onboarded) { if (S.expenses.length || S.goals.length) await setSetting('onboarded', true); else if (!qs.get('action')) openOnboarding(); }
+  if (!S.settings.onboarded && !qs.get('action')) openOnboarding();
   if (qs.get('action') === 'add') openExpense();
   if (qs.toString()) history.replaceState(null, '', location.pathname);
   if (navigator.storage?.persist) S.persisted = (await navigator.storage.persisted?.()) || (await navigator.storage.persist().catch(() => false));

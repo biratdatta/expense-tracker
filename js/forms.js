@@ -11,7 +11,8 @@ function applyKindUI() {
   $('catBlock').hidden = k === 'income'; $('srcBlock').hidden = k !== 'income';
   $('catLabel').textContent = k === 'credit' ? 'Refund for which category?' : 'Select category';
   $('payLabel').textContent = k === 'expense' ? 'Paid via' : 'Received via';
-  $('optBlock').hidden = edit;
+  $('optBlock').hidden = edit || !isAdvanced();
+  $('txKind').hidden = !isAdvanced() && (!edit || k === 'expense');   // Basic adds expenses only; editing an old income/refund still shows its type
   $('optSplit').hidden = k !== 'expense'; $('optFav').hidden = k !== 'expense'; $('optRepeat').hidden = k === 'credit';
   if (k !== 'expense') { $('txSplit').checked = false; $('txFav').checked = false; }
   if (k === 'credit') $('txRepeat').checked = false;
@@ -44,10 +45,10 @@ function openExpense(id, preset) {
   $('quickAmts').innerHTML = QUICK_AMOUNTS.map(a => `<button type="button" class="chip" data-action="quick-amt" data-amt="${a}">+${INR0.format(a)}</button>`).join('');
   ['txRepeat', 'txSub', 'txSplit', 'txFav'].forEach(k => $(k).checked = false);
   $('splitNames').value = ''; $('splitOwe').checked = true;
-  $('smsBtn').hidden = !!e; $('smsInfo').hidden = true;
+  $('smsBtn').hidden = !!e || !isAdvanced(); $('smsInfo').hidden = true;
   const info = [];
   if (e?.split) info.push(`Split ${e.split.n} ways — the amount above is the full bill (${fmt(e.split.total)}); your share is ${fmt(e.amount)}.`);
-  if (e?.recurringId) info.push('Added automatically by a monthly repeat. Manage repeats in Profile → Recurring.');
+  if (e?.recurringId) info.push(isAdvanced() ? 'Added automatically by a monthly repeat. Manage repeats in Profile → Recurring.' : 'Added automatically by a monthly repeat. Switch to Advanced mode (Profile → App mode) to manage repeats.');
   $('editInfo').hidden = !info.length; $('editInfo').innerHTML = info.map(esc).join('<br>');
   $('txDelete').style.visibility = e ? 'visible' : 'hidden';
   $('txErr').textContent = '';
@@ -253,6 +254,10 @@ function openSheet(kind) {
       <label class="irow"><input id="contribNote" maxlength="40" placeholder="Note (optional)"></label></div>
       <div class="err" id="contribErr"></div>
       <div class="sactions"><button type="button" class="btn ghost" data-action="close-dlg">Cancel</button><button type="submit" class="btn">${add ? 'Add money' : 'Withdraw'}</button></div>`; }
+  if (kind === 'mode') { const cur = appMode();
+    const opt = (k, ic, title, desc) => `<button type="button" class="opt ${k === cur ? 'on' : ''}" data-action="set-mode" data-m="${k}"><span class="ic" style="width:40px;height:40px;border-radius:13px;background:var(--accent-soft);color:var(--accent)">${icon(ic, 20)}</span><span style="flex:1">${title}<small style="display:block;font-weight:500;color:var(--muted);font-size:12.5px;line-height:1.4;margin-top:2px">${desc}</small></span>${k === cur ? `<span class="ck">${icon('tick', 20, 2.6)}</span>` : ''}</button>`;
+    html = `<h3>App mode</h3>${opt('basic', 'layers', 'Basic', 'Add expenses, set a budget, see stats. Clean and simple.')}${opt('advanced', 'grid', 'Advanced', 'Everything: recurring bills, income & savings, goals, lent & borrowed, bill splitting, SMS paste, quick-add, calendar, report card.')}
+      <p class="note" style="margin:10px 2px 0">Switching never deletes anything. Data from advanced features is kept and comes back when you switch again. Monthly repeats keep adding in Basic so your totals stay right.</p>`; }
   if (kind === 'theme') { const cur = S.settings.theme || 'system';
     html = `<h3>Appearance</h3>${THEMES.map(([k, ic, l, d]) => `<button type="button" class="opt ${k === cur ? 'on' : ''}" data-action="set-theme" data-t="${k}"><span class="ic" style="width:40px;height:40px;border-radius:13px;background:var(--accent-soft);color:var(--accent)">${icon(ic, 20)}</span><span>${l}<small style="display:block;font-weight:500;color:var(--muted);font-size:12.5px">${d}</small></span>${k === cur ? `<span class="ck">${icon('tick', 20, 2.6)}</span>` : ''}</button>`).join('')}`; }
   if (kind === 'privacy') html = `<h3>Your data stays with you</h3>
@@ -334,6 +339,6 @@ async function importJSON(file) {
 async function eraseAll() {
   if (!confirm('Erase ALL expenses, categories and budgets from this device? Export a backup first if you might need them.')) return;
   if (!confirm('This cannot be undone. Erase everything?')) return;
-  await dbClearAll(); await load(); S.txFilter = ''; S.sub = null; S.view = 'home'; render(); toast('All data erased');
+  await dbClearAll(); await load(); S.txFilter = ''; S.txAdv = { min: '', max: '', from: '', to: '' }; S.txPanel = false; S.sub = null; S.view = 'home'; S.month = curCycle(); render(); toast('All data erased'); openOnboarding();
 }
 

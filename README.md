@@ -3,6 +3,7 @@
 A private expense tracker that runs in your browser. All data is stored **on your device only** (IndexedDB). There is no server, no account, no analytics, and no network calls.
 
 ## Features
+- **Basic / Advanced mode** (Profile → App mode): Basic shows just adding expenses, budget and stats; Advanced unlocks everything below. Switching never deletes data. New users pick during setup (Basic by default); existing users stay on Advanced
 - Dark, mobile-first design: Home dashboard, Stats, Budget and Profile tabs, plus All Transactions with search and filters
 - Stats: weekly / monthly / yearly bar charts, insights vs. the previous period, payment-mode split, top categories
 - Budget: overall ring, per-category progress cards with over-budget alerts

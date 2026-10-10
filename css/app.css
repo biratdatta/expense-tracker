@@ -315,7 +315,6 @@ dialog[open]::backdrop{animation:fadeb .35s ease}
 #main.enter > *:nth-child(5){animation-delay:.16s} #main.enter > *:nth-child(6){animation-delay:.2s} #main.enter > *:nth-child(7){animation-delay:.24s}
 #main.enter > *:nth-child(8){animation-delay:.28s} #main.enter > *:nth-child(9){animation-delay:.32s} #main.enter > *:nth-child(n+10){animation-delay:.36s}
 @keyframes riseIn{from{opacity:0;transform:translateY(16px) scale(.99)}}
-#main.enter > .hero{animation:riseIn .55s cubic-bezier(.16,1,.3,1) backwards,heroShift 14s ease-in-out infinite alternate}
 #main.enter .arc,#main.charts .arc{animation:draw 1s cubic-bezier(.16,1,.3,1) .15s backwards}
 @keyframes draw{from{stroke-dasharray:0 100}}
 #main.enter .donut,#main.charts .donut{animation:spinIn .9s cubic-bezier(.16,1,.3,1) backwards}
