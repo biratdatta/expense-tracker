@@ -91,7 +91,7 @@ b{font-weight:700}
 
 /* pills & segmented */
 .pills{display:flex;gap:8px;margin:0 0 16px}
-.pill{padding:9px 18px;border-radius:999px;background:var(--surface);border:1px solid var(--border);font-size:14px;font-weight:600;color:var(--muted);box-shadow:var(--shadow)}
+.pill{flex:none;padding:9px 17px;border-radius:999px;background:var(--surface);border:1px solid var(--border);font-size:14px;font-weight:600;color:var(--muted);box-shadow:var(--shadow)}
 .pill.on{background:var(--accent);border-color:var(--accent);color:#fff}
 .seg{display:flex;gap:6px;background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:5px;margin-bottom:14px;box-shadow:var(--shadow)}
 .seg button{flex:1;padding:10px 0;border-radius:13px;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
@@ -601,6 +601,11 @@ const totalBudget = m => sum(S.categories.map(c => budgetFor(c.id, m).limit));
 /* Period ranges for stats: week (Mon–Sun), month, year. offset 0 = current. */
 function rangeOf(period, offset = 0) {
   const now = new Date(), today = todayStr();
+  if (period === 'day') {
+    const d = new Date(now); d.setDate(d.getDate() + offset); const k = ds(d);
+    const label = offset === 0 ? 'Today' : offset === -1 ? 'Yesterday' : d.toLocaleDateString(LOCALE, { weekday: 'short', day: 'numeric', month: 'short' });
+    return { start: k, end: k, label, buckets: [{ label: '', full: label, start: k, end: k, cur: k === today }], noun: 'day' };
+  }
   if (period === 'week') {
     const s = mondayOf(now); s.setDate(s.getDate() + offset * 7);
     const e = new Date(s); e.setDate(s.getDate() + 6);
@@ -681,12 +686,12 @@ function viewHome() {
   const pr = rangeOf(S.homePeriod, 0), list = expensesIn(pr.start, pr.end), tot = sum(list.map(e => e.amount));
   let byCat = Object.entries(totalsByCat(list)).map(([id, v]) => ({ c: catById(id), v })).sort((a, b) => b.v - a.v);
   if (byCat.length > 6) byCat = [...byCat.slice(0, 5), { c: { name: `Others (${byCat.length - 5})`, color: '#71717A' }, v: sum(byCat.slice(5).map(x => x.v)) }];
-  const pills = `<div class="pills">${['week', 'month', 'year'].map(p => `<button class="pill ${S.homePeriod === p ? 'on' : ''}" data-action="home-period" data-p="${p}">${p[0].toUpperCase() + p.slice(1)}</button>`).join('')}</div>`;
+  const pills = `<div class="pills">${['day', 'week', 'month', 'year'].map(p => `<button class="pill ${S.homePeriod === p ? 'on' : ''}" data-action="home-period" data-p="${p}">${p[0].toUpperCase() + p.slice(1)}</button>`).join('')}</div>`;
   const breakdown = tot ? `<section class="card">
-      <div class="ch"><h3>${{ week: 'Weekly', month: 'Monthly', year: 'Yearly' }[S.homePeriod]} Spending</h3><button class="lnk" data-action="to-stats">Details ${icon('chevR', 15, 2.4)}</button></div>
+      <div class="ch"><h3>${{ day: 'Today’s', week: 'Weekly', month: 'Monthly', year: 'Yearly' }[S.homePeriod]} Spending</h3><button class="lnk" data-action="to-stats">Details ${icon('chevR', 15, 2.4)}</button></div>
       <div class="donut-box">${donut(byCat.map(x => ({ value: x.v, color: x.c.color })), tot)}</div>
       <div class="legend">${byCat.slice(0, 6).map(x => `<div><span class="dot" style="background:${x.c.color}"></span><span class="n">${esc(x.c.name)}</span><span class="p">${Math.round(x.v / tot * 100)}%</span></div>`).join('')}</div>
-    </section>` : emptyCard('receipt', `Nothing spent this ${S.homePeriod} yet`, 'Tap + to add your first expense.');
+    </section>` : emptyCard('receipt', `Nothing spent ${S.homePeriod === 'day' ? 'today' : 'this ' + S.homePeriod} yet`, 'Tap + to add your first expense.');
 
   let goalTeaser = '';
   if (S.goals.length) {
@@ -1267,7 +1272,7 @@ document.addEventListener('click', e => {
     case 'close-dlg': t.closest('dialog').close(); break;
     case 'back': S.sub = null; render(); window.scrollTo(0, 0); break;
     case 'home-period': S.homePeriod = t.dataset.p; render(); break;
-    case 'to-stats': S.period = S.homePeriod; S.statsOffset = 0; go('stats'); break;
+    case 'to-stats': S.period = S.homePeriod === 'day' ? 'week' : S.homePeriod; S.statsOffset = 0; go('stats'); break;
     case 'to-tx': S.txFilter = ''; S.txSearch = ''; go(S.view, 'transactions'); break;
     case 'goto-cat': S.txFilter = 'cat:' + id; S.txSearch = ''; go(S.view, 'transactions'); break;
     case 'tx-filter': S.txFilter = t.dataset.k; render(); break;
